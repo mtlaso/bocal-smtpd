@@ -42,17 +42,24 @@ var (
 		Message: "Temporary authentication failure",
 	}
 
+	errNoFromHeader = &smtp.SMTPError{
+		Code:    codeRequestedActionAborted,
+		Message: "No From header",
+	}
+
 	errReject = &smtp.SMTPError{
 		Code:    codeRejected,
 		Message: "Email rejected due to DMARC policy",
 	}
+)
 
-	defaultDmarcRecord = &dmarc.Record{
+func defaultDmarcRecord() *dmarc.Record {
+	return &dmarc.Record{
 		Policy:        dmarc.PolicyNone,
 		SPFAlignment:  dmarc.AlignmentRelaxed,
 		DKIMAlignment: dmarc.AlignmentRelaxed,
 	}
-)
+}
 
 // The Backend implements SMTP server methods.
 type Backend struct {
@@ -108,17 +115,29 @@ func (s *Session) SpfAlignment(smtpmfromDomain, fromDomain string, dmarcPolicy *
 		// As per https://dmarc.org/presentations/Email-Authentication-Basics-2015Q2.pdf, p.50.
 		mailFromOrg, err := publicsuffix.EffectiveTLDPlusOne(smtpmfromDomain)
 		if err != nil {
-			s.logger.Error("SpfAlignement: Failed to get organizational domain for MAIL FROM", slog.String("domain", smtpmfromDomain), slog.Any("error", err))
+			s.logger.Error(
+				"SpfAlignement: Failed to get organizational domain for MAIL FROM",
+				slog.String("domain", smtpmfromDomain),
+				slog.Any("error", err),
+			)
 			return false
 		}
 
 		fromOrg, err := publicsuffix.EffectiveTLDPlusOne(fromDomain)
 		if err != nil {
-			s.logger.Error("SpfAlignement: Failed to get organizational domain for From header", slog.String("domain", fromDomain), slog.Any("error", err))
+			s.logger.Error(
+				"SpfAlignement: Failed to get organizational domain for From header",
+				slog.String("domain", fromDomain),
+				slog.Any("error", err),
+			)
 			return false
 		}
 
-		s.logger.Debug("SpfAlignement: Relaxed check", slog.String("mailFromOrg", mailFromOrg), slog.String("fromOrg", fromOrg))
+		s.logger.Debug(
+			"SpfAlignement: Relaxed check",
+			slog.String("mailFromOrg", mailFromOrg),
+			slog.String("fromOrg", fromOrg),
+		)
 
 		return strings.EqualFold(mailFromOrg, fromOrg)
 	}
@@ -128,7 +147,11 @@ func (s *Session) SpfAlignment(smtpmfromDomain, fromDomain string, dmarcPolicy *
 // Returns true if at least one valid signature aligns.
 //
 // https://dmarc.org/presentations/Email-Authentication-Basics-2015Q2.pdf p.42.
-func (s *Session) DkimAlignmentAndPass(dkimVerifications []*dkim.Verification, fromDomain string, dmarcPolicy *dmarc.Record) bool {
+func (s *Session) DkimAlignmentAndPass(
+	dkimVerifications []*dkim.Verification,
+	fromDomain string,
+	dmarcPolicy *dmarc.Record,
+) bool {
 	for _, verification := range dkimVerifications {
 		// Found ONE valid signature.
 		if verification.Err == nil {
@@ -143,13 +166,21 @@ func (s *Session) DkimAlignmentAndPass(dkimVerifications []*dkim.Verification, f
 				// As per https://dmarc.org/presentations/Email-Authentication-Basics-2015Q2.pdf, p.50.
 				dkimDomainOrg, err := publicsuffix.EffectiveTLDPlusOne(verification.Domain)
 				if err != nil {
-					s.logger.Error("DkimAlignement: Failed to get organizational domain for DKIM DOMAIN (d=)", slog.String("domain", verification.Domain), slog.Any("error", err))
+					s.logger.Error(
+						"DkimAlignement: Failed to get organizational domain for DKIM DOMAIN (d=)",
+						slog.String("domain", verification.Domain),
+						slog.Any("error", err),
+					)
 					return false
 				}
 
 				fromDomainOrg, err := publicsuffix.EffectiveTLDPlusOne(fromDomain)
 				if err != nil {
-					s.logger.Error("DkimAlignement: Failed to get organizational domain for From header", slog.String("domain", fromDomain), slog.Any("error", err))
+					s.logger.Error(
+						"DkimAlignement: Failed to get organizational domain for From header",
+						slog.String("domain", fromDomain),
+						slog.Any("error", err),
+					)
 					return false
 				}
 
@@ -232,11 +263,10 @@ func (s *Session) Data(r io.Reader) error {
 	fromHeader := emailMessage.Header.Get("From")
 	if fromHeader == "" {
 		s.logger.Error("Data: missing From header in the message")
-		// TODO: error code to reject.
+		// TODO: is this code correct?
 		// As per RFC 7489 > 6.6.1
 		// > Messages that have no RFC5322.From field at all are typically rejected, since that form is forbidden under RFC 5322 [MAIL];
-
-		return errInternalServer
+		return errNoFromHeader
 	}
 	fromAddr, err := mail.ParseAddress(fromHeader)
 	if err != nil {
@@ -287,7 +317,7 @@ func (s *Session) Data(r io.Reader) error {
 	}
 	if dmarcRecord == nil {
 		s.logger.Info("Data: no DMARC record found, using default one")
-		dmarcRecord = defaultDmarcRecord
+		dmarcRecord = defaultDmarcRecord()
 	}
 
 	s.logger.Info("Data: dmarc record",
@@ -425,7 +455,13 @@ type DmarcResult struct {
 //
 // 3. If it failed because it only did not pass (DMARC Outcome is Fail),
 // and the dmarc policy is either None or Quarantine: Process the email (potentially marking as spam/suspicious). (If the policy were Reject, you would reject instead of processing).
-func checkDmarc(isSpfAligned, isDkimAlignedAndPassed bool, spfResult spf.ResultType, dkimErr error, dmarcErr error, dmarcRecord *dmarc.Record) DmarcResult {
+func checkDmarc(
+	isSpfAligned, isDkimAlignedAndPassed bool,
+	spfResult spf.ResultType,
+	dkimErr error,
+	dmarcErr error,
+	dmarcRecord *dmarc.Record,
+) DmarcResult {
 
 	// (SPF passes AND aligns) OR (DKIM verifies AND aligns).
 	if (spfResult == spf.Pass && isSpfAligned) || isDkimAlignedAndPassed {
@@ -436,7 +472,8 @@ func checkDmarc(isSpfAligned, isDkimAlignedAndPassed bool, spfResult spf.ResultT
 	// Check for errors or failure that dictate DMARC outcome.
 
 	// Check for TEMPORARY errors first.
-	if spfResult == spf.Temperror || (dkimErr != nil && dkim.IsTempFail(dkimErr)) || (dmarcErr != nil && dmarc.IsTempFail(dmarcErr)) {
+	if spfResult == spf.Temperror || (dkimErr != nil && dkim.IsTempFail(dkimErr)) ||
+		(dmarcErr != nil && dmarc.IsTempFail(dmarcErr)) {
 		return DmarcResult{Outcome: OutcomeTempError, Action: ActionDefer}
 	}
 
