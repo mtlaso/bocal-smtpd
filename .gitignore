@@ -1,0 +1,9 @@
+.dev_certs
+tmp/*
+
+# SSL/TLS Certificates
+*.key
+*.crt
+*.pem
+*.p12
+*.pfx

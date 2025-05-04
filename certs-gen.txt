@@ -1,0 +1,6 @@
+# Generate a new private key
+openssl genrsa -out test-server.key 2048
+
+# Generate a self-signed certificate (valid for N days, replace domain)
+openssl req -new -x509 -sha256 -days 365 -key test-server.key -out test-server.crt -subj "/CN=localhost"
+# Use /CN=your.test.domain for test environments
