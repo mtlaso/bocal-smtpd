@@ -18,6 +18,7 @@ import (
 	"github.com/emersion/go-msgauth/dmarc"
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
+	"github.com/google/uuid"
 	"github.com/wttw/spf"
 	"golang.org/x/net/publicsuffix"
 )
@@ -61,6 +62,11 @@ func defaultDmarcRecord() *dmarc.Record {
 	}
 }
 
+// newTraceID generates a trace identifier.
+func newTraceID() string {
+	return uuid.NewString()
+}
+
 // The Backend implements SMTP server methods.
 type Backend struct {
 	logger *slog.Logger
@@ -80,6 +86,7 @@ func (b *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
 		clientIP: clientIP,
 		logger:   b.logger,
 		helo:     c.Hostname(),
+		traceID:  newTraceID(),
 	}, nil
 }
 
@@ -98,6 +105,7 @@ type Session struct {
 	rcpts    []string
 	clientIP net.IP
 	logger   *slog.Logger
+	traceID  string
 }
 
 // SpfAlignment checks SPF is aligned. Returns true if SPF is aligned.
@@ -113,10 +121,11 @@ func (s *Session) SpfAlignment(smtpmfromDomain, fromDomain string, dmarcPolicy *
 	default:
 		// Default is AlignmentRelaxed.
 		// As per https://dmarc.org/presentations/Email-Authentication-Basics-2015Q2.pdf, p.50.
-		mailFromOrg, err := publicsuffix.EffectiveTLDPlusOne(smtpmfromDomain)
+		smtpfromOrg, err := publicsuffix.EffectiveTLDPlusOne(smtpmfromDomain)
 		if err != nil {
 			s.logger.Error(
-				"SpfAlignement: Failed to get organizational domain for MAIL FROM",
+				"SpfAlignement: Failed to get organizational domain for smtpmfrom",
+				slog.String("traceID", s.traceID),
 				slog.String("domain", smtpmfromDomain),
 				slog.Any("error", err),
 			)
@@ -127,6 +136,7 @@ func (s *Session) SpfAlignment(smtpmfromDomain, fromDomain string, dmarcPolicy *
 		if err != nil {
 			s.logger.Error(
 				"SpfAlignement: Failed to get organizational domain for From header",
+				slog.String("traceID", s.traceID),
 				slog.String("domain", fromDomain),
 				slog.Any("error", err),
 			)
@@ -135,11 +145,12 @@ func (s *Session) SpfAlignment(smtpmfromDomain, fromDomain string, dmarcPolicy *
 
 		s.logger.Debug(
 			"SpfAlignement: Relaxed check",
-			slog.String("mailFromOrg", mailFromOrg),
+			slog.String("traceID", s.traceID),
+			slog.String("mailFromOrg", smtpfromOrg),
 			slog.String("fromOrg", fromOrg),
 		)
 
-		return strings.EqualFold(mailFromOrg, fromOrg)
+		return strings.EqualFold(smtpfromOrg, fromOrg)
 	}
 }
 
@@ -168,6 +179,7 @@ func (s *Session) DkimAlignmentAndPass(
 				if err != nil {
 					s.logger.Error(
 						"DkimAlignement: Failed to get organizational domain for DKIM DOMAIN (d=)",
+						slog.String("traceID", s.traceID),
 						slog.String("domain", verification.Domain),
 						slog.Any("error", err),
 					)
@@ -178,6 +190,7 @@ func (s *Session) DkimAlignmentAndPass(
 				if err != nil {
 					s.logger.Error(
 						"DkimAlignement: Failed to get organizational domain for From header",
+						slog.String("traceID", s.traceID),
 						slog.String("domain", fromDomain),
 						slog.Any("error", err),
 					)
@@ -206,7 +219,8 @@ func (s *Session) Auth(_ string) (sasl.Server, error) {
 // Mail is the handler for MAIL command.
 func (s *Session) Mail(from string, _ *smtp.MailOptions) error {
 	// log.Printf("Session from %s: Mail from: %v \n", s.clientIP, from)
-	s.logger.Info("Mail",
+	s.logger.Info("MAIL CMD",
+		slog.String("traceID", s.traceID),
 		slog.Any("client IP", s.clientIP),
 		slog.Any("mail from", from),
 	)
@@ -222,9 +236,10 @@ func (s *Session) Mail(from string, _ *smtp.MailOptions) error {
 
 // Rcpt is the handler for RCPT command.
 func (s *Session) Rcpt(to string, _ *smtp.RcptOptions) error {
-	s.logger.Info("Rcpt",
+	s.logger.Info("RCPT CMD",
+		slog.String("traceID", s.traceID),
 		slog.Any("client IP", s.clientIP),
-		slog.Any("mail from", s.smtpmfrom),
+		slog.Any("smtpmfrom", s.smtpmfrom),
 		slog.Any("mail to", to),
 	)
 
@@ -237,46 +252,57 @@ func (s *Session) Rcpt(to string, _ *smtp.RcptOptions) error {
 
 // Data is the handler for DATA command.
 func (s *Session) Data(r io.Reader) error {
-	// Read email data into buffer.
-	// The buffer provides the ability to re-read the email data before each verification step.
-	var emailData bytes.Buffer
-	if _, err := io.Copy(&emailData, r); err != nil {
-		s.logger.Error("Failed to read email Data", slog.Any("error", err))
+	// Save r io.Reader to an unconsumed buffer
+	// so that reading from it can be repeated without modifying the original data.
+	var emailBuf bytes.Buffer
+	if _, err := io.Copy(&emailBuf, r); err != nil {
+		s.logger.Error("DATA: failed to read email",
+			slog.String("traceID", s.traceID),
+			slog.Any("error", err))
 		return errInternalServer
 	}
-	emailReader := bytes.NewReader(emailData.Bytes())
 
-	s.logger.Info("Data",
+	s.logger.Info("DATA CMD",
+		slog.String("traceID", s.traceID),
 		slog.Any("client IP", s.clientIP),
 		slog.Any("smtpmfrom", s.smtpmfrom),
 		slog.Any("rcpts", s.rcpts),
-		slog.Any("email data length", emailData.Len()),
-	)
+		slog.Int("length", emailBuf.Len()))
 
-	// Parse email message.
-	emailMessage, err := mail.ReadMessage(emailReader)
+	// Parse email.
+	emailMessage, err := mail.ReadMessage(bytes.NewReader(emailBuf.Bytes()))
 	if err != nil {
-		s.logger.Error("Data: failed to read email", slog.Any("error", err))
+		s.logger.Error("DATA: failed to read email",
+			slog.String("traceID", s.traceID),
+			slog.Any("error", err))
 		return errInternalServer
 	}
 
 	fromHeader := emailMessage.Header.Get("From")
 	if fromHeader == "" {
-		s.logger.Error("Data: missing From header in the message")
+		s.logger.Error("DATA: missing From header in the message",
+			slog.String("traceID", s.traceID),
+		)
 		// TODO: is this code correct?
 		// As per RFC 7489 > 6.6.1
 		// > Messages that have no RFC5322.From field at all are typically rejected, since that form is forbidden under RFC 5322 [MAIL];
 		return errNoFromHeader
 	}
+
 	fromAddr, err := mail.ParseAddress(fromHeader)
 	if err != nil {
-		s.logger.Error("Data: failed to parse From header", slog.Any("error", err))
+		s.logger.Error("DATA: failed to parse From header",
+			slog.String("traceID", s.traceID),
+			slog.Any("error", err))
 		return errInternalServer
 	}
 
 	fromDomain := strings.Split(fromAddr.Address, "@")[1]
+
 	if len(s.smtpmfrom) == 0 || s.smtpmfrom == "<>" {
-		s.logger.Error("Data: invalid smtpmfrom", slog.Any("smtpmfrom", s.smtpmfrom))
+		s.logger.Error("DATA: invalid smtpmfrom",
+			slog.String("traceID", s.traceID),
+			slog.Any("smtpmfrom", s.smtpmfrom))
 		return errInternalServer
 	}
 	smtpmfromDomain := strings.Split(s.smtpmfrom, "@")[1]
@@ -285,56 +311,67 @@ func (s *Session) Data(r io.Reader) error {
 	// s.helo: Fallback to the RFC5321.HELO domain for a “null sender”.
 	// https://dmarc.org/presentations/Email-Authentication-Basics-2015Q2.pdf, p.16.
 	spfResult, explanation := spf.Check(context.Background(), s.clientIP, s.smtpmfrom, s.helo)
-	s.logger.Info("Data: spf",
+	s.logger.Info("DATA: spf",
+		slog.String("traceID", s.traceID),
 		slog.Any("result", spfResult),
 		slog.Any("error", explanation),
 	)
 
 	// DKIM.
-	// Seek(): we need to reset the reader to the beginning of the email body.
-	// Doc: Why can't I verify a net/mail.Message directly? A net/mail.Message header is already parsed, and whitespace characters (especially continuation lines) are removed
-	_, err = emailReader.Seek(0, io.SeekStart)
-	if err != nil {
-		s.logger.Error("Data: failed to reset email reader", slog.Any("error", err))
-		return errInternalServer
-	}
-	dkimVerifications, dkimErr := dkim.Verify(emailReader)
+	// Doc: Why can't I verify a net/mail.Message directly? A net/mail.Message header is already parsed, and whitespace characters (especially continuation lines) are removed.
+	dkimVerifications, dkimErr := dkim.Verify(bytes.NewReader(emailBuf.Bytes()))
 	if dkimErr != nil {
-		s.logger.Error("Data: DKIM verification failed", slog.Any("error", dkimErr))
+		s.logger.Error("DATA: DKIM verification failed",
+			slog.String("traceID", s.traceID),
+			slog.Any("error", dkimErr))
 	} else {
-		s.logger.Info("Data: DKIM verification results", slog.Int("signatures", len(dkimVerifications)))
+		s.logger.Info("DATA: DKIM verification results",
+			slog.String("traceID", s.traceID),
+			slog.Int("signatures", len(dkimVerifications)))
 		for i, v := range dkimVerifications {
-			s.logger.Info("Data: DKIM signature result", slog.Int("index", i), slog.String("domain", v.Domain), slog.String("selector", v.Identifier), slog.Any("error", v.Err))
+			s.logger.Info("DATA: DKIM signature result",
+				slog.String("traceID", s.traceID),
+				slog.Int("index", i),
+				slog.String("domain", v.Domain),
+				slog.String("selector", v.Identifier),
+				slog.Any("error", v.Err))
 		}
 	}
 
 	// DMARC.
-	// DMARC operates on the RFC5322.From address
+	// DMARC operates on the 'From:' email header.
 	var dmarcRecord *dmarc.Record
 	dmarcRecord, dmarcErr := dmarc.Lookup(strings.Split(fromAddr.Address, "@")[1])
 	if dmarcErr != nil {
-		s.logger.Error("Data: failed to lookup DMARC", slog.Any("error", err))
+		s.logger.Error("DATA: failed to lookup DMARC",
+			slog.String("traceID", s.traceID),
+			slog.Any("error", dmarcErr))
 	}
 	if dmarcRecord == nil {
-		s.logger.Info("Data: no DMARC record found, using default one")
+		s.logger.Warn("DATA: no DMARC record found, using default one",
+			slog.String("traceID", s.traceID),
+		)
 		dmarcRecord = defaultDmarcRecord()
 	}
 
-	s.logger.Info("Data: dmarc record",
+	s.logger.Info("DATA: dmarc record",
+		slog.String("traceID", s.traceID),
 		slog.Any("result", dmarcRecord),
 	)
 
 	// DMARC auth evaluation.
 	isDkimAlignedAndPassed := s.DkimAlignmentAndPass(dkimVerifications, fromDomain, dmarcRecord)
 	isSpfAligned := s.SpfAlignment(smtpmfromDomain, fromDomain, dmarcRecord)
-	s.logger.Info("Data: Alignment results",
+	s.logger.Info("DATA: Alignment results",
+		slog.String("traceID", s.traceID),
 		slog.Bool("spf domain alignment", isSpfAligned),
 		slog.Bool("dkim alignment and pass", isDkimAlignedAndPassed),
 		slog.String("spf result", spfResult.String()),
 	)
 
 	dmarcResult := checkDmarc(isSpfAligned, isDkimAlignedAndPassed, spfResult, dkimErr, dmarcErr, dmarcRecord)
-	s.logger.Info("Data: DMARC result",
+	s.logger.Info("DATA: DMARC result",
+		slog.String("traceID", s.traceID),
 		slog.String("outcome", string(dmarcResult.Outcome)),
 		slog.String("action", string(dmarcResult.Action)),
 	)
@@ -345,23 +382,27 @@ func (s *Session) Data(r io.Reader) error {
 		// Process the email but mark it as suspicious/spam in your system
 		// You might want to add headers or flags for your processing system
 		// ...
+		return nil
 	case ActionDefer:
 		return errTempfail
 
 	case ActionAccept:
 		// Process normally
 		// ...
+		s.logger.Info("goofy")
+		return nil
 	}
-
-	log.Println("Data:", emailReader)
 
 	return nil
 }
 
 func (s *Session) Reset() {
-	s.logger.Info("Reset")
+	s.logger.Info("Reset",
+		slog.String("traceID", s.traceID),
+	)
 	s.smtpmfrom = ""
 	s.rcpts = []string{}
+	s.traceID = ""
 }
 
 func (s *Session) Logout() error {
@@ -376,7 +417,7 @@ func main() {
 	}
 	server := smtp.NewServer(be)
 
-	server.Addr = "localhost:1025"
+	server.Addr = "0.0.0.0:1025"
 	server.Domain = "localhost"
 	server.WriteTimeout = timeout
 	server.ReadTimeout = timeout
@@ -385,9 +426,20 @@ func main() {
 
 	// TLS config.
 	server.AllowInsecureAuth = false
+	certPath := os.Getenv("TLS_CERT_PATH")
+	keyPath := os.Getenv("TLS_KEY_PATH")
+
+	if len(certPath) == 0 {
+		log.Fatal("TLS_CERT_PATH not set")
+	}
+
+	if len(keyPath) == 0 {
+		log.Fatal("TLS_KEY_PATH not set")
+	}
+
 	// TODO: load production certificates.
 	// Make sure that docker reloads after loading the certificates because the certificates are automatically renewed every n (e.g., 90) days (see cerbot).
-	cert, err := tls.LoadX509KeyPair("server.crt", "server.key")
+	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -462,7 +514,6 @@ func checkDmarc(
 	dmarcErr error,
 	dmarcRecord *dmarc.Record,
 ) DmarcResult {
-
 	// (SPF passes AND aligns) OR (DKIM verifies AND aligns).
 	if (spfResult == spf.Pass && isSpfAligned) || isDkimAlignedAndPassed {
 		return DmarcResult{Outcome: OutcomePass, Action: ActionAccept}

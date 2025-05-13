@@ -1,5 +1,11 @@
 .dev_certs
 tmp/*
+/certs/
+/bocal-email-sender/keys/
+
+# Generated from scripts/dev/run-tests.sh
+dns/zones
+dns/Corefile
 
 # SSL/TLS Certificates
 *.key
