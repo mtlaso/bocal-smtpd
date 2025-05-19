@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"log/slog"
@@ -19,6 +20,7 @@ import (
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/wttw/spf"
 	"golang.org/x/net/publicsuffix"
 )
@@ -70,6 +72,7 @@ func newTraceID() string {
 // The Backend implements SMTP server methods.
 type Backend struct {
 	logger *slog.Logger
+	dbURL  string
 }
 
 // NewSession is called after client greeting (EHLO, HELO).
@@ -87,6 +90,7 @@ func (b *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
 		logger:   b.logger,
 		helo:     c.Hostname(),
 		traceID:  newTraceID(),
+		dbURL:    b.dbURL,
 	}, nil
 }
 
@@ -106,6 +110,7 @@ type Session struct {
 	clientIP net.IP
 	logger   *slog.Logger
 	traceID  string
+	dbURL    string
 }
 
 // SpfAlignment checks SPF is aligned. Returns true if SPF is aligned.
@@ -387,11 +392,36 @@ func (s *Session) Data(r io.Reader) error {
 		return errTempfail
 
 	case ActionAccept:
-		// Process normally
-		// ...
-		s.logger.Info("goofy")
+
+		// go func(msg *mail.Message) {
+		// 	if pErr := s.processEmail(msg); pErr != nil {
+		// 		s.logger.Error("Failed to process email", slog.String("traceID", s.traceID), slog.Any("error", pErr))
+		// 	}
+		// }(emailMessage)
 		return nil
 	}
+
+	return nil
+}
+
+// processEmail will process the email.
+// It takes the email and adds it to the database.
+func (s *Session) processEmail(_ *mail.Message) error {
+	// db, err := pgx.Connect(context.Background(), s.dbURL)
+	dbpool, err := pgxpool.New(context.Background(), s.dbURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	defer dbpool.Close()
+
+	var version string
+	qErr := dbpool.QueryRow(context.Background(), "SELECT version()").Scan(&version)
+	if qErr != nil {
+		return fmt.Errorf("database error: %w", qErr)
+	}
+
+	s.logger.Info("Database version", slog.String("version", version))
 
 	return nil
 }
@@ -411,9 +441,15 @@ func (s *Session) Logout() error {
 }
 
 func main() {
+	dbURL := os.Getenv("DATABASE_URL")
+	if len(dbURL) == 0 {
+		log.Fatal("DATABASE_URL not set")
+	}
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	be := &Backend{
 		logger: logger,
+		dbURL:  dbURL,
 	}
 	server := smtp.NewServer(be)
 

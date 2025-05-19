@@ -4,17 +4,23 @@ clear
 
 PREFIX="[script]"
 SMTP_SERVER_SERVICE="bocal-smtpd"
-EMAIL_SENDER_SERVICE="bocal-email-sender"
-EMAIL_SENDER_BINARY="bocal-email-sender"
-# Dir to store DKIM keys.
-HOST_KEY_DIR="./bocal-email-sender/keys"
+HOST_KEY_DIR="./dns/keys"
 
 # Exit immediately if a command exits with a non-zero status.
 set -e
+
+BUILD_BOCAL_SMTPD=false
+for arg in "$@"; do
+    if [ "$arg" == "--build-bocal-smtpd" ]; then
+        BUILD_BOCAL_SMTPD=true
+    fi
+done
+
 echo "$PREFIX === setting up testing environment ==="
 
 # Create necessary directories (if they don't exist).
 mkdir -p dns/zones
+mkdir -p dns/keys
 mkdir -p "$HOST_KEY_DIR"
 
 echo "$PREFIX Generating DKIM keys on host..."
@@ -28,13 +34,12 @@ else
     echo "$PREFIX DKIM keys already exist in $HOST_KEY_DIR"
 fi
 
-# PUBLIC_KEY=$(cat "$HOST_KEY_DIR/dkim.public")
-# Make sure that the public key has no white space.
-# PUBLIC_KEY=$(cat "$HOST_KEY_DIR/dkim.public" | tr -d '\n\r\t ')
 PUBLIC_KEY=$(openssl rsa -in "$HOST_KEY_DIR/dkim.private" -pubout -outform der | base64 -w0)
 echo "$PREFIX Public key: $PUBLIC_KEY"
 
-# Create CoreDNS configuration (if it doesn't exist).
+echo "$PREFIX Generating self-signed certificate for internal/bocalmail..."
+OUT=$(openssl req -x509 -newkey rsa:4096 -keyout internal/bocalmail/client.key -out client.crt -days 365 -nodes -subj "/CN=localhost" -outform PEM -out internal/bocalmail/client.crt)
+
 if [ ! -f dns/Corefile ]; then
     echo "$PREFIX Creating CoreDNS configuration..."
     cat > dns/Corefile << EOF
@@ -68,8 +73,7 @@ if [ ! -f dns/zones/example.com.zone ]; then
                        3600            ; minimum
                        )
 @       IN      NS      ns.example.com.
-@       IN      A       172.28.1.3 ; This is the IP address of your email-sender container in the test network
-@       IN      TXT     "v=spf1 ip4:172.28.1.3 -all"
+@       IN      TXT     "v=spf1 +all"  ; We use +all so SPF records are always valid because we don't know the IP address of the client (test) will use to send a request.
 _dmarc  IN      TXT     "v=DMARC1; p=reject; rua=mailto:dmarc@example.com"
 selector._domainkey IN TXT "v=DKIM1; k=rsa; p=$PUBLIC_KEY"
 EOF
@@ -88,23 +92,19 @@ if [ ! -f dns/zones/test.com.zone ]; then
                         )
 @       IN      NS      ns.test.com.
 @       IN      A       172.28.1.3
-@       IN      TXT     "v=spf1 -all"
+@       IN      TXT     "v=spf1 +all"   ; We use +all so SPF records are always valid because we don't know the IP address of the client (test) will use to send a request.
 _dmarc  IN      TXT     "v=DMARC1; p=reject; rua=mailto:dmarc@test.com"
 selector._domainkey IN TXT "v=DKIM1; k=rsa; p=$PUBLIC_KEY"
 EOF
 fi
 
-# echo "$PREFIX updating example.com zone file with DKIM public key..."
-# sed "s|DKIM_PUBLIC_KEY_PLACEHOLDER|$PUBLIC_KEY|" dns/zones/example.com.zone > dns/zones/example.com.zone.tmp
-# mv dns/zones/example.com.zone.tmp dns/zones/example.com.zone
-
-# echo "$PREFIX updating test.com zone file with DKIM public key..."
-# sed "s|DKIM_PUBLIC_KEY_PLACEHOLDER|$PUBLIC_KEY|" dns/zones/test.com.zone > dns/zones/test.com.zone.tmp
-# mv dns/zones/test.com.zone.tmp dns/zones/test.com.zone
-
 echo "$PREFIX starting Docker containers..."
 docker compose down -v
-# docker compose build --parallel
+if [ "$BUILD_BOCAL_SMTPD" = true ]; then
+    echo "$PREFIX building container: $SMTP_SERVER_SERVICE"
+    docker compose build "$SMTP_SERVER_SERVICE" --parallel
+    docker compose build bocal-smtpd --parallel
+fi
 docker compose up -d
 
 echo "$PREFIX checking if services are running..."
@@ -113,14 +113,3 @@ if ! docker compose ps | grep -q " Up "; then
     docker compose logs
     exit 1
 fi
-
-echo "$PREFIX === Docker containers are running. ==="
-echo "$PREFIX The email sender is running in a waiting state."
-echo "$PREFIX To access logs:"
-echo "$PREFIX   docker compose logs -f"
-echo "$PREFIX "
-echo "$PREFIX To run the test scenarios:"
-echo "$PREFIX   docker compose exec $EMAIL_SENDER_SERVICE ./$EMAIL_SENDER_BINARY"
-echo "$PREFIX "
-echo "$PREFIX Shutdown with:"
-echo "$PREFIX   docker compose down"

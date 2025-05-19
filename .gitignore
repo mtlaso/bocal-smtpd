@@ -1,9 +1,9 @@
 .dev_certs
 tmp/*
 /certs/
-/bocal-email-sender/keys/
 
 # Generated from scripts/dev/run-tests.sh
+dns/keys
 dns/zones
 dns/Corefile
 
@@ -13,3 +13,5 @@ dns/Corefile
 *.pem
 *.p12
 *.pfx
+dkim.public
+dkim.private

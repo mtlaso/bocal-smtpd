@@ -11,8 +11,7 @@ services:
     environment:
       - TLS_CERT_PATH=/app/certs/server.crt
       - TLS_KEY_PATH=/app/certs/server.key
-    # dns:
-    #   - 172.28.1.2 # Point to the coredns container's internal IP
+      - DATABASE_URL=postgres://admin:root@postgres:5432/bocal
     networks:
       bocal_net:
         ipv4_address: 172.28.1.1
@@ -30,25 +29,6 @@ services:
     networks:
       bocal_net:
         ipv4_address: 172.28.1.2
-
-  # Test email sender with DKIM signing capability
-  bocal-email-sender:
-    build:
-      context: . # Build from the project root
-      dockerfile: ./bocal-email-sender/Dockerfile
-    container_name: bocal-email-sender
-    volumes:
-      - ./bocal-email-sender/keys/dkim.private:/app/keys/dkim.private:ro
-    environment:
-      - SMTP_SERVER=172.28.1.1
-      - SMTP_PORT=1025
-      - TLS_CERT_PATH=/app/certs/client.crt
-      - TLS_KEY_PATH=/app/certs/client.key
-    # dns:
-    #   - 172.28.1.2 # Point to the coredns container's internal IP
-    networks:
-      bocal_net:
-        ipv4_address: 172.28.1.3
 
 networks:
   bocal_net:
