@@ -392,12 +392,11 @@ func (s *Session) Data(r io.Reader) error {
 		return errTempfail
 
 	case ActionAccept:
-
-		// go func(msg *mail.Message) {
-		// 	if pErr := s.processEmail(msg); pErr != nil {
-		// 		s.logger.Error("Failed to process email", slog.String("traceID", s.traceID), slog.Any("error", pErr))
-		// 	}
-		// }(emailMessage)
+		go func(msg *mail.Message) {
+			if pErr := s.processEmail(msg); pErr != nil {
+				s.logger.Error("Failed to process email", slog.String("traceID", s.traceID), slog.Any("error", pErr))
+			}
+		}(emailMessage)
 		return nil
 	}
 
@@ -412,7 +411,6 @@ func (s *Session) processEmail(_ *mail.Message) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
-
 	defer dbpool.Close()
 
 	var version string

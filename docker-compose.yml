@@ -11,10 +11,12 @@ services:
     environment:
       - TLS_CERT_PATH=/app/certs/server.crt
       - TLS_KEY_PATH=/app/certs/server.key
-      - DATABASE_URL=postgres://admin:root@postgres:5432/bocal
+      - DATABASE_URL=postgres://admin:root@host.docker.internal:5432/bocal
     networks:
       bocal_net:
         ipv4_address: 172.28.1.1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   # Mock DNS server for SPF/DMARC/DKIM records
   coredns:
