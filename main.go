@@ -67,7 +67,7 @@ func defaultDmarcRecord() *dmarc.Record {
 // The Backend implements SMTP server methods.
 type Backend struct {
 	logger *slog.Logger
-	dbURL  string
+	dbpool *pgxpool.Pool
 }
 
 // NewSession is called after client greeting (EHLO, HELO).
@@ -85,7 +85,7 @@ func (b *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
 		logger:   b.logger,
 		helo:     c.Hostname(),
 		traceID:  uuid.NewString(),
-		dbURL:    b.dbURL,
+		dbpool:   b.dbpool,
 	}, nil
 }
 
@@ -105,7 +105,7 @@ type Session struct {
 	clientIP net.IP
 	logger   *slog.Logger
 	traceID  string
-	dbURL    string
+	dbpool   *pgxpool.Pool
 }
 
 // SpfAlignment checks SPF is aligned. Returns true if SPF is aligned.
@@ -407,17 +407,11 @@ func (s *Session) Data(r io.Reader) error {
 // processEmail will process the email.
 // It takes the email and adds it to the database.
 func (s *Session) processEmail(emailMessage *mail.Message, rcpt string) error {
-	dbpool, err := pgxpool.New(context.Background(), s.dbURL)
-	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
-	}
-	defer dbpool.Close()
-
 	// Find the feed id with the rcpt.
 	// The 'rcpt' is the eid (external id) of a feed.
 	var feedID string
 	feedEID := strings.Split(rcpt, "@")[0]
-	err = dbpool.QueryRow(context.Background(), `
+	err := s.dbpool.QueryRow(context.Background(), `
 		SELECT id
 		FROM feeds
 		WHERE eid = $1`, feedEID).Scan(&feedID)
@@ -439,7 +433,7 @@ func (s *Session) processEmail(emailMessage *mail.Message, rcpt string) error {
 		content = []byte{}
 	}
 
-	cmdTag, err := dbpool.Exec(context.Background(), `
+	cmdTag, err := s.dbpool.Exec(context.Background(), `
 		INSERT INTO feeds_content ("feedId", date, url, title, content)
 		VALUES($1, $2, $3, $4, $5)`,
 		feedID,
@@ -456,6 +450,7 @@ func (s *Session) processEmail(emailMessage *mail.Message, rcpt string) error {
 		return fmt.Errorf("nothing was inserted %w", err)
 	}
 
+	s.logger.Info("added")
 	return nil
 }
 
@@ -480,10 +475,18 @@ func main() {
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	dbpool, err := pgxpool.New(context.Background(), dbURL)
+	if err != nil {
+		log.Fatal("failed to connect to database: %w", err)
+	}
+
+	defer dbpool.Close()
 	be := &Backend{
 		logger: logger,
-		dbURL:  dbURL,
+		dbpool: dbpool,
 	}
+
 	server := smtp.NewServer(be)
 
 	server.Addr = "0.0.0.0:1025"
