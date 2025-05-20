@@ -64,11 +64,6 @@ func defaultDmarcRecord() *dmarc.Record {
 	}
 }
 
-// newTraceID generates a trace identifier.
-func newTraceID() string {
-	return uuid.NewString()
-}
-
 // The Backend implements SMTP server methods.
 type Backend struct {
 	logger *slog.Logger
@@ -89,7 +84,7 @@ func (b *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
 		clientIP: clientIP,
 		logger:   b.logger,
 		helo:     c.Hostname(),
-		traceID:  newTraceID(),
+		traceID:  uuid.NewString(),
 		dbURL:    b.dbURL,
 	}, nil
 }
@@ -392,11 +387,17 @@ func (s *Session) Data(r io.Reader) error {
 		return errTempfail
 
 	case ActionAccept:
-		go func(msg *mail.Message) {
-			if pErr := s.processEmail(msg); pErr != nil {
-				s.logger.Error("Failed to process email", slog.String("traceID", s.traceID), slog.Any("error", pErr))
-			}
-		}(emailMessage)
+		for _, rcpt := range s.rcpts {
+			go func(emailMessage *mail.Message, rcpt string) {
+				if pErr := s.processEmail(emailMessage, rcpt); pErr != nil {
+					s.logger.Error(
+						"Failed to process email",
+						slog.String("traceID", s.traceID),
+						slog.Any("error", pErr),
+					)
+				}
+			}(emailMessage, rcpt)
+		}
 		return nil
 	}
 
@@ -405,21 +406,55 @@ func (s *Session) Data(r io.Reader) error {
 
 // processEmail will process the email.
 // It takes the email and adds it to the database.
-func (s *Session) processEmail(_ *mail.Message) error {
-	// db, err := pgx.Connect(context.Background(), s.dbURL)
+func (s *Session) processEmail(emailMessage *mail.Message, rcpt string) error {
 	dbpool, err := pgxpool.New(context.Background(), s.dbURL)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 	defer dbpool.Close()
 
-	var version string
-	qErr := dbpool.QueryRow(context.Background(), "SELECT version()").Scan(&version)
-	if qErr != nil {
-		return fmt.Errorf("database error: %w", qErr)
+	// Find the feed id with the rcpt.
+	// The 'rcpt' is the eid (external id) of a feed.
+	var feedID string
+	feedEID := strings.Split(rcpt, "@")[0]
+	err = dbpool.QueryRow(context.Background(), `
+		SELECT id
+		FROM feeds
+		WHERE eid = $1`, feedEID).Scan(&feedID)
+	if err != nil {
+		return fmt.Errorf("database error: %w", err)
 	}
 
-	s.logger.Info("Database version", slog.String("version", version))
+	s.logger.Info("Found feed id", slog.String("id", feedID), slog.String("rcpt", rcpt))
+
+	// Add content to 'feeds_content'.
+	url := fmt.Sprintf("https://bocal.fyi/userfeeds/%s/content/%s", feedEID, uuid.NewString())
+	date := time.Now()
+	title := emailMessage.Header.Get("Subject")
+	var content []byte
+	content, err = io.ReadAll(emailMessage.Body)
+	if err != nil {
+		// Content is optional if it cannot be read.
+		s.logger.Warn("could not read email content", slog.Any("error", err))
+		content = []byte{}
+	}
+
+	cmdTag, err := dbpool.Exec(context.Background(), `
+		INSERT INTO feeds_content ("feedId", date, url, title, content)
+		VALUES($1, $2, $3, $4, $5)`,
+		feedID,
+		date,
+		url,
+		title,
+		string(content),
+	)
+	if err != nil {
+		return fmt.Errorf("database error: %w", err)
+	}
+
+	if cmdTag.RowsAffected() != 1 {
+		return fmt.Errorf("nothing was inserted %w", err)
+	}
 
 	return nil
 }

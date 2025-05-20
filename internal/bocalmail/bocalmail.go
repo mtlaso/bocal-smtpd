@@ -81,7 +81,12 @@ func SignWithDKIM(emailString, dkimDomain, dkimSelector string,
 // If sending fails, it returns SendFailure.
 //
 // If everything is successful, it returns, SendResult will contain the status text response from the SMTP server.
-func SendEmail(cert tls.Certificate, addr string, email []byte, smtpmfrom, rcpt string) (SendResult, error) {
+func SendEmail(
+	cert tls.Certificate,
+	addr string,
+	email []byte,
+	smtpmfrom, rcpt string,
+) (SendResult, error) {
 	tlsConfig := &tls.Config{
 		Certificates:       []tls.Certificate{cert},
 		MinVersion:         tls.VersionTLS13, // Same as in 'bocal-smtpd'

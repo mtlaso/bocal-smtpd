@@ -98,7 +98,10 @@ func TestMain(m *testing.M) {
 }
 
 func TestEmailAuthScenarios(t *testing.T) {
-	cert, err := tls.LoadX509KeyPair("../internal/bocalmail/client.crt", "../internal/bocalmail/client.key")
+	cert, err := tls.LoadX509KeyPair(
+		"../internal/bocalmail/client.crt",
+		"../internal/bocalmail/client.key",
+	)
 	if err != nil {
 		t.Fatal("Failed to load certificates for sendMail tls", err)
 	}
@@ -108,7 +111,9 @@ func TestEmailAuthScenarios(t *testing.T) {
 		t.Run(fmt.Sprintf("Scenario %d: %s", i+1, scenario.Name), func(t *testing.T) {
 			t.Parallel()
 
-			toHeader := "user@usermail.bocal.fyi"
+			// The part before the domain is the eid of a feed.
+			// Make sure to use a real eid to add content to the database.
+			toHeader := "2188676a-34ed-404a-888c-05ba461aebef@usermail.bocal.fyi"
 			emailBody := bocalmail.CreateEmailBody()
 			emailHeaders := bocalmail.CreateEmailHeaders(scenario, toHeader)
 			emailString := emailHeaders + "\r\n" + emailBody
@@ -129,15 +134,29 @@ func TestEmailAuthScenarios(t *testing.T) {
 				finalEmail = []byte(emailString)
 			}
 
-			statusText, sErr := bocalmail.SendEmail(cert, "127.0.0.1:1025", finalEmail, scenario.Smtpmfrom, toHeader)
+			statusText, sErr := bocalmail.SendEmail(
+				cert,
+				"127.0.0.1:1025",
+				finalEmail,
+				scenario.Smtpmfrom,
+				toHeader,
+			)
 			if scenario.ExpectPass {
 				if sErr != nil {
-					t.Errorf("Scenario '%s': Expected successful send, but received error: %v", scenario.Name, sErr)
+					t.Errorf(
+						"Scenario '%s': Expected successful send, but received error: %v",
+						scenario.Name,
+						sErr,
+					)
 				}
 
 				if sErr == nil {
 					if !strings.HasPrefix(string(statusText), "2") {
-						t.Errorf("Scenario '%s': Expected 2xx success status, but got '%s'", scenario.Name, statusText)
+						t.Errorf(
+							"Scenario '%s': Expected 2xx success status, but got '%s'",
+							scenario.Name,
+							statusText,
+						)
 					} else {
 						t.Logf("Scenario '%s': Email sent successfully as expected (Status: '%s').", scenario.Name, statusText)
 					}
