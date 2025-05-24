@@ -480,8 +480,8 @@ func main() {
 	if err != nil {
 		log.Fatal("failed to connect to database: %w", err)
 	}
-
 	defer dbpool.Close()
+
 	be := &Backend{
 		logger: logger,
 		dbpool: dbpool,
@@ -489,7 +489,7 @@ func main() {
 
 	server := smtp.NewServer(be)
 
-	server.Addr = "0.0.0.0:1025"
+	server.Addr = "0.0.0.0:465"
 	server.Domain = "localhost"
 	server.WriteTimeout = timeout
 	server.ReadTimeout = timeout

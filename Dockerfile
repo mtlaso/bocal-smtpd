@@ -1,29 +1,28 @@
-FROM golang:1.24-alpine
-
+# --- Builder Stage ---
+FROM golang:1.24-alpine AS builder
 WORKDIR /app
-
-# Copy go.mod and go.sum first for better caching.
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod/ \
-    --mount=type=bind,source=go.sum,target=go.sum \
-    --mount=type=bind,source=go.mod,target=go.mod \
     go mod download
-
-# Copy the rest of the code.
 COPY . .
-
-# Generate self-signed certificates for development.
-RUN apk add openssl
-RUN mkdir -p /app/certs && \
-    openssl req -x509 -newkey rsa:4096 -keyout /app/certs/server.key -out /app/certs/server.crt -days 365 -nodes -subj "/CN=localhost"
-
-# Build the application
 ENV GOCACHE=/root/.cache/go-build
 RUN --mount=type=cache,target=/go/pkg/mod \
     go build -o bocal-smtpd .
 
-# Expose the SMTP port
+# --- Development Stage ---
+FROM golang:1.24-alpine AS dev
+WORKDIR /app
+COPY --from=builder /app/bocal-smtpd /app/
+RUN apk add openssl
+RUN mkdir -p /app/certs && \
+    openssl req -x509 -newkey rsa:4096 -keyout /app/certs/privatekey.pem -out /app/certs/fullchain.pem -days 365 -nodes -subj "/CN=localhost"
 EXPOSE 1025
+CMD ["./bocal-smtpd"]
 
-# Command to run the server
+# --- Production Stage ---
+FROM alpine:latest AS prod
+WORKDIR /app
+COPY --from=builder /app/bocal-smtpd /app/
+RUN apk add --no-cache ca-certificates
+EXPOSE 1025
 CMD ["./bocal-smtpd"]

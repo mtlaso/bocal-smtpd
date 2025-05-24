@@ -38,7 +38,7 @@ PUBLIC_KEY=$(openssl rsa -in "$HOST_KEY_DIR/dkim.private" -pubout -outform der |
 echo "$PREFIX Public key: $PUBLIC_KEY"
 
 echo "$PREFIX Generating self-signed certificate for internal/bocalmail..."
-OUT=$(openssl req -x509 -newkey rsa:4096 -keyout internal/bocalmail/client.key -out client.crt -days 365 -nodes -subj "/CN=localhost" -outform PEM -out internal/bocalmail/client.crt)
+OUT=$(openssl req -x509 -newkey rsa:4096 -keyout internal/bocalmail/privatekey.pem -out internal/bocalmail/fullchain.pem -days 365 -nodes -subj "/CN=localhost")
 
 if [ ! -f dns/Corefile ]; then
     echo "$PREFIX Creating CoreDNS configuration..."
@@ -99,17 +99,16 @@ EOF
 fi
 
 echo "$PREFIX starting Docker containers..."
-docker compose down -v
+docker compose -f docker-compose.dev.yml down -v
 if [ "$BUILD_BOCAL_SMTPD" = true ]; then
     echo "$PREFIX building container: $SMTP_SERVER_SERVICE"
-    docker compose build "$SMTP_SERVER_SERVICE" --parallel
-    docker compose build bocal-smtpd --parallel
+    docker compose -f docker-compose.dev.yml build $SMTP_SERVER_SERVICE --parallel
 fi
-docker compose up -d
+docker compose -f docker-compose.dev.yml up -d
 
 echo "$PREFIX checking if services are running..."
-if ! docker compose ps | grep -q " Up "; then
+if ! docker compose -f docker-compose.dev.yml ps | grep -q " Up "; then
     echo "$PREFIX error: services failed to start properly."
-    docker compose logs
+    docker compose -f docker-compose.dev.yml logs
     exit 1
 fi

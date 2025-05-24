@@ -99,8 +99,8 @@ func TestMain(m *testing.M) {
 
 func TestEmailAuthScenarios(t *testing.T) {
 	cert, err := tls.LoadX509KeyPair(
-		"../internal/bocalmail/client.crt",
-		"../internal/bocalmail/client.key",
+		"../internal/bocalmail/fullchain.pem",
+		"../internal/bocalmail/privatekey.pem",
 	)
 	if err != nil {
 		t.Fatal("Failed to load certificates for sendMail tls", err)
@@ -136,7 +136,7 @@ func TestEmailAuthScenarios(t *testing.T) {
 
 			statusText, sErr := bocalmail.SendEmail(
 				cert,
-				"127.0.0.1:1025",
+				"127.0.0.1:465",
 				finalEmail,
 				scenario.Smtpmfrom,
 				toHeader,

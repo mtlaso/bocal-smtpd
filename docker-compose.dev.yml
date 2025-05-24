@@ -2,15 +2,17 @@ name: bocal
 
 services:
   bocal-smtpd:
-    build: .
+    build:
+      context: .
+      target: dev
     container_name: bocal-smtpd
     ports:
-      - "1025:1025"
+      - "465:465"
     volumes:
       - ./dns/resolv.conf:/etc/resolv.conf:ro
     environment:
-      - TLS_CERT_PATH=/app/certs/server.crt
-      - TLS_KEY_PATH=/app/certs/server.key
+      - TLS_CERT_PATH=/app/certs/fullchain.pem
+      - TLS_KEY_PATH=/app/certs/privatekey.pem
       - DATABASE_URL=postgres://admin:root@host.docker.internal:5432/bocal
     networks:
       bocal_net:
