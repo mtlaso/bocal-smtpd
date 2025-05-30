@@ -7,8 +7,10 @@ services:
       target: prod
     ports:
       - "465:465"
-    volumes:
-      - certbot_data:/etc/secrets/letsencrypt:ro
+    tmpfs:
+      - /etc/secrets/letsencrypt
+    # volumes:
+    #   - certbot_data:/etc/secrets/letsencrypt:ro
     environment:
       # - TLS_CERT_PATH=/etc/secrets/letsencrypt/live/mail.yourdomain.com/fullchain.pem
       # - TLS_KEY_PATH=/etc/secrets/letsencrypt/live/mail.yourdomain.com/privkey.pem
@@ -45,31 +47,6 @@ services:
     networks:
       bocal_net_prod:
     restart: unless-stopped
-
-  # certbot:
-  #   image: certbot/certbot
-  #   command: certonly --webroot -w /var/www/certbot -d usermail.bocal.fyi --email root@bocal.fyi --agree-tos --noninteractive --force-renewal
-  #   # Optional: Add command for renewal checks (e.g., a cron job wrapper)
-  #   # command: /bin/sh -c "trap exit TERM; while :; do certbot renew; sleep 12h & wait $!; done;" # Example for continuous renewal checks
-  #   volumes:
-  #     - certbot_data:/etc/letsencrypt # Persistent storage for certs and config
-  #     - webroot_volume:/var/www/certbot # Volume for webroot validation files
-  #   environment:
-  #     - CERTBOT_VERBOSITY=info
-  #   networks:
-  #     bocal_net_prod:
-  #   deploy:
-  #     restart_policy:
-  #       condition: on-failure
-  #   healthcheck:
-  #     test:
-  #       [
-  #         "CMD-SHELL",
-  #         "[ -f /etc/letsencrypt/live/usermail.bocal.fyi/fullchain.pem ]",
-  #       ]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 5
 
 networks:
   bocal_net_prod:

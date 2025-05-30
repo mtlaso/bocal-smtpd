@@ -113,7 +113,7 @@ func TestEmailAuthScenarios(t *testing.T) {
 
 			// The part before the domain is the eid of a feed.
 			// Make sure to use a real eid to add content to the database.
-			toHeader := "2188676a-34ed-404a-888c-05ba461aebef@usermail.bocal.fyi"
+			toHeader := "2188676a-34ed-404a-888c-05ba461aebef@bocalusermail.fyi"
 			emailBody := bocalmail.CreateEmailBody()
 			emailHeaders := bocalmail.CreateEmailHeaders(scenario, toHeader)
 			emailString := emailHeaders + "\r\n" + emailBody

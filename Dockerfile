@@ -1,4 +1,6 @@
-# --- Builder Stage ---
+###########################
+###### Builder Stage ######
+###########################
 FROM golang:1.24-alpine AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -9,7 +11,9 @@ ENV GOCACHE=/root/.cache/go-build
 RUN --mount=type=cache,target=/go/pkg/mod \
     go build -o bocal-smtpd .
 
-# --- Development Stage ---
+###############################
+###### Development Stage ######
+###############################
 FROM golang:1.24-alpine AS dev
 WORKDIR /app
 COPY --from=builder /app/bocal-smtpd /app/
@@ -19,7 +23,9 @@ RUN mkdir -p /app/certs && \
 EXPOSE 1025
 CMD ["./bocal-smtpd"]
 
-# --- Production Stage ---
+##############################
+###### Production Stage ######
+##############################
 FROM alpine:latest AS prod
 WORKDIR /app
 COPY --from=builder /app/bocal-smtpd /app/

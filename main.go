@@ -243,7 +243,7 @@ func (s *Session) Rcpt(to string, _ *smtp.RcptOptions) error {
 		slog.Any("mail to", to),
 	)
 
-	if strings.HasSuffix(to, "@usermail.bocal.fyi") {
+	if strings.HasSuffix(to, "@bocalusermail.fyi") {
 		s.rcpts = append(s.rcpts, to)
 	}
 
