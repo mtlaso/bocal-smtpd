@@ -1,14 +1,12 @@
 # bocal-smtpd
 
-## SSL/TLS Certificates
+Serveur smtp pour la fonctionnalité de newsletters de [bocal.fyi](https://www.bocal.fyi).
 
-This application requires TLS certificates for secure SMTP communication.
+## Tests
 
-For development:
-1. Generate self-signed certificates using the provided script: `./scripts/generate-certs.sh`
-2. Certificates will be created in the `dev_certs/` directory (which is gitignored)
+1. Première exécution : `make test-build` (génère les certificats).
+2. Par la suite : `make test`
 
-For production:
-1. Set the following environment variables:
-   - `TLS_CERT_PATH`: Path to your TLS certificate
-   - `TLS_KEY_PATH`: Path to your TLS private key
+## Autre
+
+- Formatter : `make fmt` (installer golangci-lint au préalable)
