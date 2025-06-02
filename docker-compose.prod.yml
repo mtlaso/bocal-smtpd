@@ -1,59 +1,60 @@
-name: bocal_prod
+name: bocal-smtpd
 
 services:
-  bocal-smtpd:
-    build:
-      context: .
-      target: prod
-    ports:
-      - "465:465"
-    tmpfs:
-      - /etc/secrets/letsencrypt
-    # volumes:
-    #   - certbot_data:/etc/secrets/letsencrypt:ro
+  cert-fetcher:
+    image: bitwarden/bws:latest
     environment:
-      # - TLS_CERT_PATH=/etc/secrets/letsencrypt/live/mail.yourdomain.com/fullchain.pem
-      # - TLS_KEY_PATH=/etc/secrets/letsencrypt/live/mail.yourdomain.com/privkey.pem
+      - BWS_ACCESS_TOKEN
+      - BWS_PROJECT_ID
+      - BWS_PRIVATEKEY_ID
+      - BWS_FULLCHAIN_ID
+      - TLS_CERT_PATH=/app/certs/fullchain.pem
+      - TLS_KEY_PATH=/app/certs/privatekey.pem
+    volumes:
+      - tls_certs_volume:/app/certs
+      - ./fetch-certs.sh:/usr/local/bin/fetch-certs.sh:ro
+    command: ["/usr/local/bin/fetch-certs.sh"]
+
+  bocal-smtpd:
+    image: ghcr.io/mtlaso/bocal-smtpd:latest
+    restart: unless-stopped
+    volumes:
+      - tls_certs_volume:/app/certs:ro
+    environment:
+      - TLS_CERT_PATH=/app/certs/fullchain.pem
+      - TLS_KEY_PATH=/app/certs/privkey.pem
       - DATABASE_URL=${DATABASE_URL}
     depends_on:
-      certbot:
-        condition: service_healthy
+      cert-fetcher:
+        condition: service_completed_successfully
     networks:
-      bocal_net_prod:
+      bocal_net:
     healthcheck:
-      # Basic healthcheck for TLS port.
       test: ["CMD-SHELL", "nc -z localhost 465 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-    deploy:
-      replicas: 3
-      restart_policy:
-        condition: unless-stopped
+    scale: 3
 
   caddy:
-    build:
-      context: .
-      dockerfile: Dockerfile.caddy_l4
-    image: bocal-caddy_l4/caddy-l4:latest
+    image: ghcr.io/mtlaso/bocal-caddy_l4:latest
     ports:
       - "587:587"
       - "465:465"
     volumes:
       - caddy_data:/data
       - ./Caddyfile.prod:/etc/caddy/Caddyfile
-    depends_on:
-      - bocal-smtpd
     networks:
-      bocal_net_prod:
+      bocal_net:
     restart: unless-stopped
 
 networks:
-  bocal_net_prod:
+  bocal_net:
     ipam:
       driver: default
       config:
         - subnet: 172.28.0.0/16
-# volumes:
-#   certbot_data:
-#   webroot_volume:
+
+volumes:
+  tls_certs_volume:
+  caddy_data:

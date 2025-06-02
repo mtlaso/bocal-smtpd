@@ -1,26 +1,17 @@
-# Handle webroot validation.
-bocalusermail.fyi:80 {
-    # Respond to ACME challenges from Certbot.
-    route /.well-known/acme-challenge/* {
-        root * /var/www/certbot # Serve files from the webroot volume.
-        file_server
-    }
-}
-
 # Listen on the standard submission port 587.
 bocalusermail.fyi:587 {
     layer4 {
         # No 'tls' directive at this layer4 level
-        # Proxy raw TCP connections to your bocal-smtpd service
-        proxy bocal-smtpd_prod:465
+        # Proxy raw TCP connections to bocal-smtpd
+        proxy bocal-smtpd:465
     }
 }
 
 # Listen on legacy SMTPS port 465.
 bocalusermail.fyi:465 {
     layer4 {
-        # No 'tls' directive here
-        # Forward to bocal-smtpd's internal SMTPS port
-        proxy bocal-smtpd_prod:465
+        # No 'tls' directive at this layer4 level
+        # Proxy raw TCP connections to bocal-smtpd
+        proxy bocal-smtpd:465
     }
 }

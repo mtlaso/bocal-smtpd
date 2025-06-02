@@ -16,11 +16,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 ###############################
 FROM golang:1.24-alpine AS dev
 WORKDIR /app
+# For future reference, `app/bocal-smtpd` is THE executable.
 COPY --from=builder /app/bocal-smtpd /app/
 RUN apk add openssl
 RUN mkdir -p /app/certs && \
     openssl req -x509 -newkey rsa:4096 -keyout /app/certs/privatekey.pem -out /app/certs/fullchain.pem -days 365 -nodes -subj "/CN=localhost"
-EXPOSE 1025
 CMD ["./bocal-smtpd"]
 
 ##############################
@@ -28,7 +28,7 @@ CMD ["./bocal-smtpd"]
 ##############################
 FROM alpine:latest AS prod
 WORKDIR /app
+# For future reference, `app/bocal-smtpd` is THE executable.
 COPY --from=builder /app/bocal-smtpd /app/
 RUN apk add --no-cache ca-certificates
-EXPOSE 1025
 CMD ["./bocal-smtpd"]
