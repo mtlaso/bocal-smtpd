@@ -490,6 +490,15 @@ func main() {
 	server := smtp.NewServer(be)
 
 	server.Addr = "0.0.0.0:465"
+	smtpServerDomain := os.Getenv("SMTP_SERVER_DOMAIN")
+	if smtpServerDomain == "" {
+		smtpServerDomain = "localhost" // Not set in docker-compose.dev.yml
+		logger.Warn(
+			"SMTP_SERVER_DOMAIN environment variable not set, defaulting to 'localhost'. For production, this should be your server's FQDN.",
+			slog.String("default_domain", smtpServerDomain),
+		)
+	}
+	server.Domain = smtpServerDomain // Use the configured or default domain
 	server.Domain = "localhost"
 	server.WriteTimeout = timeout
 	server.ReadTimeout = timeout

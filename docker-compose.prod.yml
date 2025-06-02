@@ -21,9 +21,10 @@ services:
     volumes:
       - tls_certs_volume:/app/certs:ro
     environment:
+      - SMTP_SERVER_DOMAIN=mail.bocalusermail.fyi
+      - DATABASE_URL
       - TLS_CERT_PATH=/app/certs/fullchain.pem
       - TLS_KEY_PATH=/app/certs/privkey.pem
-      - DATABASE_URL=${DATABASE_URL}
     depends_on:
       cert-fetcher:
         condition: service_completed_successfully
