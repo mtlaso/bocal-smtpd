@@ -115,9 +115,9 @@ jobs:
           CERT_FETCHER_IMAGE_WITH_TAG=ghcr.io/${{ env.CERT_FETCHER_IMAGE_NAME }}@${{ needs.build_and_push_images.outputs.cert_fetcher_image_tag }}
           EOF
 
-          # Copy docker-compose.prod.yml, cert-fetcher.sh.
           cp docker-compose.prod.yml ../vps-deploy-files/
           cp cert-fetcher.sh ../vps-deploy-files/
+          cp haproxy.prod.cfg ../vps-deploy-files/
 
           tar -cvf vps-deploy-files.tar ../vps-deploy-files/
 
