@@ -91,11 +91,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: test
-        env:
-          SUPER_SECRET: ${{ secrets.SuperSecret }}
-        run: echo "test"
-
       - name: Create .env file
         # Pass secrets.
         # https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions#example-using-bash
@@ -132,7 +127,7 @@ jobs:
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIAVTE_KEY }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           source: "vps-deploy-files.tar"
