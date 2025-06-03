@@ -11,7 +11,6 @@ concurrency:
 
 env:
   APP_IMAGE_NAME: ${{ github.repository_owner }}/bocal-smtpd
-  CADDY_IMAGE_NAME: ${{ github.repository_owner }}/bocal-caddy-l4
   CERT_FETCHER_IMAGE_NAME: ${{ github.repository_owner }}/bocal-cert-fetcher
 
 permissions:
@@ -45,7 +44,6 @@ jobs:
       packages: write
     outputs:
       app_image_tag: ${{ steps.push_app.outputs.digest }}
-      caddy_image_tag: ${{ steps.push_caddy.outputs.digest }}
       cert_fetcher_image_tag: ${{ steps.push_cert_fetcher.outputs.digest }}
     steps:
       - name: Checkout Code
@@ -70,17 +68,6 @@ jobs:
           target: prod
           push: true
           tags: ghcr.io/${{ env.APP_IMAGE_NAME }}:latest, ghcr.io/${{ env.APP_IMAGE_NAME }}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and Push Caddy L4 Image
-        id: push_caddy
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile.caddy_l4
-          push: true
-          tags: ghcr.io/${{ env.CADDY_IMAGE_NAME }}:latest, ghcr.io/${{ env.CADDY_IMAGE_NAME }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -125,13 +112,11 @@ jobs:
           BWS_FULLCHAIN_ID=$BWS_FULLCHAIN_ID
           DATABASE_URL=$DATABASE_URL
           APP_IMAGE_WITH_TAG=ghcr.io/${{ env.APP_IMAGE_NAME }}@${{ needs.build_and_push_images.outputs.app_image_tag }}
-          CADDY_IMAGE_WITH_TAG=ghcr.io/${{ env.CADDY_IMAGE_NAME }}@${{ needs.build_and_push_images.outputs.caddy_image_tag }}
           CERT_FETCHER_IMAGE_WITH_TAG=ghcr.io/${{ env.CERT_FETCHER_IMAGE_NAME }}@${{ needs.build_and_push_images.outputs.cert_fetcher_image_tag }}
           EOF
 
-          # Copy docker-compose.prod.yml, copy Caddyfile.prod, cert-fetcher.sh.
+          # Copy docker-compose.prod.yml, cert-fetcher.sh.
           cp docker-compose.prod.yml ../vps-deploy-files/
-          cp Caddyfile.prod ../vps-deploy-files/
           cp cert-fetcher.sh ../vps-deploy-files/
 
           tar -cvf vps-deploy-files.tar ../vps-deploy-files/
