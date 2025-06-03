@@ -251,6 +251,8 @@ func (s *Session) Rcpt(to string, _ *smtp.RcptOptions) error {
 }
 
 // Data is the handler for DATA command.
+//
+//nolint:funlen // todo.
 func (s *Session) Data(r io.Reader) error {
 	// Save r io.Reader to an unconsumed buffer
 	// so that reading from it can be repeated without modifying the original data.
@@ -480,7 +482,6 @@ func main() {
 	if err != nil {
 		log.Fatal("failed to connect to database: %w", err)
 	}
-	defer dbpool.Close()
 
 	be := &Backend{
 		logger: logger,
@@ -530,6 +531,8 @@ func main() {
 	if err = server.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
+
+	dbpool.Close()
 }
 
 type Outcome string

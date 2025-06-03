@@ -14,6 +14,7 @@ import (
 	"bocal.fyi/mail-server/internal/bocalmail"
 )
 
+//nolint:gochecknoglobals // For testing purposes only.
 var AuthScenarios = []bocalmail.Scenario{
 	{
 		Name:       "Valid SPF, Valid DKIM",
@@ -50,10 +51,13 @@ var AuthScenarios = []bocalmail.Scenario{
 }
 
 var (
-	DKIMPrivateKey  *rsa.PrivateKey
+	//nolint:gochecknoglobals // For testing purposes only.
+	DKIMPrivateKey *rsa.PrivateKey
+	//nolint:gochecknoglobals // For testing purposes only.
 	buildBocalSmtpd bool
 )
 
+//nolint:gochecknoinits // Needed to pass arguments.
 func init() {
 	flag.BoolVar(&buildBocalSmtpd, "build-bocal-smtpd", false, "Build bocal-smtpd before tests")
 }
@@ -97,7 +101,9 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+//nolint:gocognit // Needed.
 func TestEmailAuthScenarios(t *testing.T) {
+	t.Parallel()
 	cert, err := tls.LoadX509KeyPair(
 		"../internal/bocalmail/fullchain.pem",
 		"../internal/bocalmail/privatekey.pem",
@@ -106,7 +112,6 @@ func TestEmailAuthScenarios(t *testing.T) {
 		t.Fatal("Failed to load certificates for sendMail tls", err)
 	}
 
-	t.Parallel()
 	for i, scenario := range AuthScenarios {
 		t.Run(fmt.Sprintf("Scenario %d: %s", i+1, scenario.Name), func(t *testing.T) {
 			t.Parallel()
@@ -134,7 +139,7 @@ func TestEmailAuthScenarios(t *testing.T) {
 				finalEmail = []byte(emailString)
 			}
 
-			statusText, sErr := bocalmail.SendEmail(
+			statusText, sendErr := bocalmail.SendEmail(
 				cert,
 				"127.0.0.1:465",
 				finalEmail,
@@ -142,36 +147,38 @@ func TestEmailAuthScenarios(t *testing.T) {
 				toHeader,
 			)
 			if scenario.ExpectPass {
-				if sErr != nil {
+				switch {
+				case sendErr != nil:
 					t.Errorf(
 						"Scenario '%s': Expected successful send, but received error: %v",
 						scenario.Name,
-						sErr,
+						sendErr,
 					)
-				}
-
-				if sErr == nil {
-					if !strings.HasPrefix(string(statusText), "2") {
-						t.Errorf(
-							"Scenario '%s': Expected 2xx success status, but got '%s'",
-							scenario.Name,
-							statusText,
-						)
-					} else {
-						t.Logf("Scenario '%s': Email sent successfully as expected (Status: '%s').", scenario.Name, statusText)
-					}
+				case !strings.HasPrefix(string(statusText), "2"):
+					t.Errorf(
+						"Scenario '%s': Expected 2xx success status, but got '%s'",
+						scenario.Name,
+						statusText,
+					)
+				default:
+					t.Logf(
+						"Scenario '%s': Email sent successfully as expected (Status: '%s').",
+						scenario.Name,
+						statusText,
+					)
 				}
 			}
 
 			if !scenario.ExpectPass {
-				if sErr == nil {
+				switch sendErr {
+				case nil:
 					t.Errorf(
 						"Scenario '%s': Expected an error, but the email was sent successfully (Status: '%s').",
 						scenario.Name,
 						statusText,
 					)
-				} else {
-					t.Logf("Scenario '%s': Received expected error: %v", scenario.Name, sErr)
+				default:
+					t.Logf("Scenario '%s': Received expected error: %v", scenario.Name, sendErr)
 				}
 			}
 		})

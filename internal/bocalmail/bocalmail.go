@@ -88,10 +88,11 @@ func SendEmail(
 	smtpmfrom, rcpt string,
 ) (SendResult, error) {
 	tlsConfig := &tls.Config{
-		Certificates:       []tls.Certificate{cert},
-		MinVersion:         tls.VersionTLS13, // Same as in 'bocal-smtpd'
-		InsecureSkipVerify: true,             // WARNING: Only for testing! Do NOT use in production.
-		ServerName:         "localhost",      // ServerName should match the CN of the server certificate
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS13, // Same as in 'bocal-smtpd'
+		//nolint:gosec // For testing purposes only.
+		InsecureSkipVerify: true,        // WARNING: Only for testing! Do NOT use in production.
+		ServerName:         "localhost", // ServerName should match the CN of the server certificate
 	}
 
 	c, err := smtp.DialStartTLS(addr, tlsConfig)

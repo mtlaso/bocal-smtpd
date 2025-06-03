@@ -1,0 +1,177 @@
+name: Test, Format, Build, Push to GHCR, and Deploy to VPS
+
+on:
+  push:
+    branches:
+      - "master"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_IMAGE_NAME: ${{ github.repository_owner }}/bocal-smtpd
+  CADDY_IMAGE_NAME: ${{ github.repository_owner }}/bocal-caddy-l4
+
+jobs:
+  lint_and_test:
+    name: Lint and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.2"
+
+      - name: Set up golangci-lint
+        uses: golangci/golangci-lint-action@v8
+
+      - name: Run Tests with Build (make test-build)
+        run: make test-build
+
+  build_and_push_images:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    needs: lint_and_test
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      app_image_tag: ${{ steps.push_app.outputs.digest }}
+      caddy_image_tag: ${{ steps.push_caddy.outputs.digest }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Build and Push bocal-smtpd Image
+        id: push_app
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: prod
+          push: true
+          tags: ghcr.io/${{ env.APP_IMAGE_NAME }}:latest, ghcr.io/${{ env.APP_IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and Push Caddy L4 Image
+        id: push_caddy
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.caddy_l4
+          push: true
+          tags: ghcr.io/${{ env.CADDY_IMAGE_NAME }}:latest, ghcr.io/${{ env.CADDY_IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy_to_vps:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    needs: build_and_push_images
+    # environment: production # Optional: Link to GitHub environment for secrets/protection rules
+    steps:
+      - name: Create .env file
+        run: |
+          mkdir ../vps-deploy-files
+          touch ../vps-deploy-files/.env
+
+          # Create .env file.
+          cat <<EOF > ../vps-deploy-files/.env
+          BWS_ACCESS_TOKEN="${{ secrets.BITWARDEN_ACCESS_TOKEN }}"
+          BWS_PROJECT_ID="${{ secrets.BITWARDEN_PROJECT_ID }}"
+          BWS_PRIVATEKEY_ID="${{ secrets.BITWARDEN_PRIVATEKEY_ID }}"
+          BWS_FULLCHAIN_ID="${{ secrets.BITWARDEN_FULLCHAIN_ID }}"
+          DATABASE_URL="${{ secrets.DATABASE_URL }}"
+          APP_IMAGE_WITH_TAG=ghcr.io/${{ env.APP_IMAGE_NAME }}@${{ needs.build_and_push_images.outputs.app_image_tag }}
+          CADDY_IMAGE_WITH_TAG=ghcr.io/${{ env.CADDY_IMAGE_NAME }}@${{ needs.build_and_push_images.outputs.caddy_image_tag }}
+          EOF
+
+          # Copy docker-compose.prod.yml, copy Caddyfile.prod, fetch-certs.sh.
+          cp docker-compose.prod.yml ../vps-deploy-files/
+          cp Caddyfile.prod ../vps-deploy-files/
+          cp fetch-certs.sh ../vps-deploy-files/
+
+          tar -cvf vps-deploy-files.tar ../vps-deploy-files/
+
+      - name: Copy files to VPS
+        uses: appleboy/scp-action@1.0.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIAVTE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          source: "vps-deploy-files.tar"
+          target: "/tmp"
+
+      - name: Extract archive and run deployment on VPS
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          script: |
+            set -e # Exit on any error
+            APP_DIR="/opt/bocal-smtpd"
+            ARCHIVE_PATH="/tmp/vps-deploy-files.tar"
+
+            echo "Ensuring application directory $APP_DIR exists..."
+            sudo mkdir -p "$APP_DIR"
+
+            echo "Extracting deployment archive to $APP_DIR..."
+            sudo tar -xvf "$ARCHIVE_PATH" -C "$APP_DIR"
+            echo "Archive extracted."
+
+            echo "Setting permissions for fetch-certs.sh..."
+            chmod +x "$APP_DIR/scripts/fetch-certs.sh"
+
+            echo "Cleaning up deployment archive from /tmp..."
+            rm "$ARCHIVE_PATH"
+
+            echo "Starting application with Docker Compose in $APP_DIR..."
+            cd "$APP_DIR"
+            docker compose down
+            docker compose -f docker-compose.prod.yml up -d --force-recreate
+            echo "Deployment complete."
+
+      # - name: Deploy using SSH
+      #   uses: appleboy/ssh-action@v1.2.2
+      #   env:
+      #     BWS_ACCESS_TOKEN: ${{ secrets.BITWARDEN_ACCESS_TOKEN }}
+      #     BWS_PROJECT_ID: ${{ secrets.BITWARDEN_PROJECT_ID }}
+      #     BWS_PRIVATEKEY_ID: ${{ secrets.BITWARDEN_PRIVATEKEY_ID }}
+      #     BWS_FULLCHAIN_ID: ${{ secrets.BITWARDEN_FULLCHAIN_ID }}
+      #     DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      #     APP_IMAGE_WITH_TAG: "ghcr.io/${{ env.APP_IMAGE_NAME }}@${{ needs.build_and_push_images.outputs.app_image_tag }}"
+      #     CADDY_IMAGE_WITH_TAG: "ghcr.io/${{ env.CADDY_IMAGE_NAME }}@${{ needs.build_and_push_images.outputs.caddy_image_tag }}"
+      #   with:
+      #     username: ${{ secrets.SSH_USERNAME }}
+      #     host: ${{ secrets.SSH_HOST }}
+      #     key: ${{ secrets.SSH_PRIAVTE_KEY }}
+      #     port: ${{ secrets.SSH_PORT }}
+      #     passphrase: ${{ secrets.SSH_PASSPHRASE }}
+      #     script: |
+      #       # Copy docker-compose.prod.yml, copy Caddyfile.prod, cert-fetcher, create .env file
+      #       # Lancer docker compose up
+      #       # ... (your VPS deployment script that creates .env, docker-compose.yml, etc.)
+      #       # Make sure the docker-compose.yml on the VPS uses:
+      #       # image: ${APP_IMAGE_TO_PULL} (where APP_IMAGE_TO_PULL is set from APP_IMAGE_WITH_TAG)
+      #       # image: ${CADDY_IMAGE_TO_PULL} (where CADDY_IMAGE_TO_PULL is set from CADDY_IMAGE_WITH_TAG)
+      #       # ...
