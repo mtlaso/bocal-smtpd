@@ -95,10 +95,10 @@ jobs:
         # Pass secrets.
         # https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions#example-using-bash
         env:
-          BWS_ACCESS_TOKEN: ${{ secrets.BITWARDEN_ACCESS_TOKEN }}
-          BWS_PROJECT_ID: ${{ secrets.BITWARDEN_PROJECT_ID }}
-          BWS_PRIVATEKEY_ID: ${{ secrets.BITWARDEN_PRIVATEKEY_ID }}
-          BWS_FULLCHAIN_ID: ${{ secrets.BITWARDEN_FULLCHAIN_ID }}
+          BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
+          BWS_PROJECT_ID: ${{ secrets.BWS_PROJECT_ID }}
+          BWS_PRIVATEKEY_ID: ${{ secrets.BWS_PRIVATEKEY_ID }}
+          BWS_FULLCHAIN_ID: ${{ secrets.BWS_FULLCHAIN_ID }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           mkdir ../vps-deploy-files
@@ -154,13 +154,13 @@ jobs:
             echo "Archive extracted."
 
             echo "Setting permissions for fetch-certs.sh..."
-            chmod +x "$APP_DIR/scripts/fetch-certs.sh"
+            chmod +x "$APP_DIR/vps-deploy-files/fetch-certs.sh"
 
             echo "Cleaning up deployment archive from /tmp..."
             rm "$ARCHIVE_PATH"
 
             echo "Starting application with Docker Compose in $APP_DIR..."
-            cd "$APP_DIR"
+            cd "$APP_DIR/vps-deploy-files"
             docker compose down
             docker compose -f docker-compose.prod.yml up -d --force-recreate
             echo "Deployment complete."
