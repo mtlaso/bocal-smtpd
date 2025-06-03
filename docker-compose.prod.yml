@@ -60,3 +60,4 @@ networks:
 volumes:
   tls_certs_volume:
   caddy_data:
+  caddy_config:
