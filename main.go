@@ -519,7 +519,7 @@ func main() {
 		log.Fatal("TLS_KEY_PATH not set")
 	}
 
-	// TODO: load production certificates.
+	// TODO: load production certificates
 	// Make sure that docker reloads after loading the certificates because the certificates are automatically renewed every n (e.g., 90) days (see cerbot).
 	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
 	if err != nil {
