@@ -160,6 +160,7 @@ jobs:
             rm "$ARCHIVE_PATH"
 
             echo "Starting application with Docker Compose in $APP_DIR..."
+            cd "$APP_DIR/vps-deploy-files"
             docker compose down
-            docker compose -f $APP_DIR/vps-deploy-files/docker-compose.prod.yml up -d --force-recreate
+            docker compose -f docker-compose.prod.yml up -d --force-recreate
             echo "Deployment complete."
