@@ -16,7 +16,7 @@ services:
     command: ["/usr/local/bin/fetch-certs.sh"]
 
   bocal-smtpd:
-    image: ghcr.io/mtlaso/bocal-smtpd:latest
+    image: ${APP_IMAGE_WITH_TAG}
     restart: unless-stopped
     volumes:
       - tls_certs_volume:/app/certs:ro
@@ -38,7 +38,7 @@ services:
     scale: 3
 
   caddy:
-    image: ghcr.io/mtlaso/bocal-caddy_l4:latest
+    image: ${CADDY_IMAGE_WITH_TAG}
     ports:
       - "587:587"
       - "465:465"
