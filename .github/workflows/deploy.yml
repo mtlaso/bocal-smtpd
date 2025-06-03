@@ -162,7 +162,8 @@ jobs:
             echo "Starting application with Docker Compose in $APP_DIR..."
             cd "$APP_DIR/vps-deploy-files"
             pwd
-            mv docker-compose.prod.yml docker-compose.yml
+            # Doesn't work for some reason if it has a custom name, even with '-f' flag (docker compose -f ...)
+            sudo mv docker-compose.prod.yml docker-compose.yml
             docker compose down
             docker compose -f docker-compose.yml up -d --force-recreate
             echo "Deployment complete."
