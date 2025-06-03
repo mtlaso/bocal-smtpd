@@ -80,11 +80,19 @@ func (b *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
 		clientIP = remoteAddr.IP
 	}
 
+	traceID := uuid.NewString()
+	b.logger.Info(
+		"New session",
+		slog.Any("clientIP", clientIP),
+		slog.Any("remoteAddr", remoteAddr),
+		slog.Any("traceID", traceID),
+	)
+
 	return &Session{
 		clientIP: clientIP,
 		logger:   b.logger,
 		helo:     c.Hostname(),
-		traceID:  uuid.NewString(),
+		traceID:  traceID,
 		dbpool:   b.dbpool,
 	}, nil
 }
