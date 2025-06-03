@@ -44,6 +44,7 @@ services:
       - "465:465"
     volumes:
       - caddy_data:/data
+      - caddy_config:/config
       - ./Caddyfile.prod:/etc/caddy/Caddyfile
     networks:
       bocal_net:
