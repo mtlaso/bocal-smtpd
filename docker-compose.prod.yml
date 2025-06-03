@@ -39,7 +39,7 @@ services:
   haproxy:
     image: haproxy:latest
     volumes:
-      - ./haproxy.prod.cfg:/usr/local/etc/haproxy.cfg:ro
+      - ./haproxy.prod.cfg:/usr/local/etc/haproxy/haproxy.cfg
     ports:
       - "587:587"
       - "465:465"
