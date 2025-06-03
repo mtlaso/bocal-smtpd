@@ -162,6 +162,7 @@ jobs:
             echo "Starting application with Docker Compose in $APP_DIR..."
             cd "$APP_DIR/vps-deploy-files"
             pwd
+            mv docker-compose.prod.yml docker-compose.yml
             docker compose down
-            docker compose -f docker-compose.prod.yml up -d --force-recreate
+            docker compose -f docker-compose.yml up -d --force-recreate
             echo "Deployment complete."
