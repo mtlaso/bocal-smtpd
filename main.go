@@ -507,8 +507,7 @@ func main() {
 			slog.String("default_domain", smtpServerDomain),
 		)
 	}
-	server.Domain = smtpServerDomain // Use the configured or default domain
-	server.Domain = "localhost"
+	server.Domain = smtpServerDomain
 	server.WriteTimeout = timeout
 	server.ReadTimeout = timeout
 	server.MaxMessageBytes = maxMessageSize
@@ -536,7 +535,7 @@ func main() {
 	server.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS13}
 
 	logger.Info("SMTP server started at", slog.Any("addr", server.Addr))
-	if err = server.ListenAndServeTLS(); err != nil {
+	if err = server.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 
