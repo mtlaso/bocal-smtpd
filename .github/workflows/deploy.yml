@@ -83,7 +83,7 @@ jobs:
     name: Deploy to VPS
     runs-on: ubuntu-latest
     needs: build_and_push_images
-    # environment: production # Optional: Link to GitHub environment for secrets/protection rules
+    environment: production
     steps:
       - name: Create .env file
         run: |
@@ -109,7 +109,7 @@ jobs:
           tar -cvf vps-deploy-files.tar ../vps-deploy-files/
 
       - name: Copy files to VPS
-        uses: appleboy/scp-action@1.0.0
+        uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
@@ -150,28 +150,3 @@ jobs:
             docker compose down
             docker compose -f docker-compose.prod.yml up -d --force-recreate
             echo "Deployment complete."
-
-      # - name: Deploy using SSH
-      #   uses: appleboy/ssh-action@v1.2.2
-      #   env:
-      #     BWS_ACCESS_TOKEN: ${{ secrets.BITWARDEN_ACCESS_TOKEN }}
-      #     BWS_PROJECT_ID: ${{ secrets.BITWARDEN_PROJECT_ID }}
-      #     BWS_PRIVATEKEY_ID: ${{ secrets.BITWARDEN_PRIVATEKEY_ID }}
-      #     BWS_FULLCHAIN_ID: ${{ secrets.BITWARDEN_FULLCHAIN_ID }}
-      #     DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      #     APP_IMAGE_WITH_TAG: "ghcr.io/${{ env.APP_IMAGE_NAME }}@${{ needs.build_and_push_images.outputs.app_image_tag }}"
-      #     CADDY_IMAGE_WITH_TAG: "ghcr.io/${{ env.CADDY_IMAGE_NAME }}@${{ needs.build_and_push_images.outputs.caddy_image_tag }}"
-      #   with:
-      #     username: ${{ secrets.SSH_USERNAME }}
-      #     host: ${{ secrets.SSH_HOST }}
-      #     key: ${{ secrets.SSH_PRIAVTE_KEY }}
-      #     port: ${{ secrets.SSH_PORT }}
-      #     passphrase: ${{ secrets.SSH_PASSPHRASE }}
-      #     script: |
-      #       # Copy docker-compose.prod.yml, copy Caddyfile.prod, cert-fetcher, create .env file
-      #       # Lancer docker compose up
-      #       # ... (your VPS deployment script that creates .env, docker-compose.yml, etc.)
-      #       # Make sure the docker-compose.yml on the VPS uses:
-      #       # image: ${APP_IMAGE_TO_PULL} (where APP_IMAGE_TO_PULL is set from APP_IMAGE_WITH_TAG)
-      #       # image: ${CADDY_IMAGE_TO_PULL} (where CADDY_IMAGE_TO_PULL is set from CADDY_IMAGE_WITH_TAG)
-      #       # ...
