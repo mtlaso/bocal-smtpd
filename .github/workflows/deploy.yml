@@ -85,6 +85,9 @@ jobs:
     needs: build_and_push_images
     environment: production
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Create .env file
         run: |
           mkdir ../vps-deploy-files
