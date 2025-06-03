@@ -39,7 +39,7 @@ services:
   haproxy:
     image: haproxy:latest
     volumes:
-      - ./haproxy.cfg:/usr/local/etc/haproxy.cfg
+      - ./haproxy.prod.cfg:/usr/local/etc/haproxy.cfg:ro
     ports:
       - "587:587"
       - "465:465"
@@ -56,5 +56,3 @@ networks:
 
 volumes:
   tls_certs_volume:
-  caddy_data:
-  caddy_config:
