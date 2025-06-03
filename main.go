@@ -536,7 +536,7 @@ func main() {
 	server.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS13}
 
 	logger.Info("SMTP server started at", slog.Any("addr", server.Addr))
-	if err = server.ListenAndServe(); err != nil {
+	if err = server.ListenAndServeTLS(); err != nil {
 		log.Fatal(err)
 	}
 
