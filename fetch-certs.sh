@@ -24,6 +24,12 @@ ERRPREFIX="Error (.sh): fetch-certs.sh"
 # - TLS_KEY_PATH (e.g. app/certs/privkey.pem)
 
 
+#####################
+#### Install bws ####
+#####################
+curl https://bws.bitwarden.com/install | sh
+export PATH="$PATH:/root/.local/bin"
+
 ########################################
 #### Validate environment variables ####
 ########################################
