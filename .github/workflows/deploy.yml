@@ -154,7 +154,7 @@ jobs:
             echo "Archive extracted."
 
             echo "Setting permissions for fetch-certs.sh..."
-            chmod +x "$APP_DIR/vps-deploy-files/fetch-certs.sh"
+            sudo chmod +x "$APP_DIR/vps-deploy-files/fetch-certs.sh"
 
             echo "Cleaning up deployment archive from /tmp..."
             rm "$ARCHIVE_PATH"
