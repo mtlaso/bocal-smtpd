@@ -2,7 +2,7 @@ name: bocal-smtpd
 
 services:
   cert-fetcher:
-    image: bitwarden/bws:latest
+    image: ${CERT_FETCHER_IMAGE_WITH_TAG}
     environment:
       - BWS_ACCESS_TOKEN
       - BWS_PROJECT_ID

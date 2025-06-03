@@ -1,0 +1,17 @@
+FROM alpine:latest
+
+RUN apk add --no-cache curl jq unzip ca-certificates coreutils # coreutils provides base64 on alpine
+
+RUN curl https://bws.bitwarden.com/install | sh
+# ARG BWS_VERSION="1.26.0" # Check for the latest stable version
+# RUN curl -Lo /tmp/bws.zip "https://github.com/bitwarden/clients/releases/download/cli-v${BWS_VERSION}/bws-linux-${BWS_VERSION}.zip" && \
+#     unzip /tmp/bws.zip -d /usr/local/bin && \
+#     chmod +x /usr/local/bin/bws && \
+#     rm /tmp/bws.zip
+
+COPY ./fetch-certs.sh /usr/local/bin/fetch-certs.sh
+RUN chmod +x /usr/local/bin/fetch-certs.sh
+
+# Set the entrypoint to be your script
+ENTRYPOINT ["/usr/local/bin/fetch-certs.sh"]
+CMD []
