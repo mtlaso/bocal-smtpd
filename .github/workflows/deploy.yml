@@ -146,6 +146,7 @@ jobs:
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           source: "vps-deploy-files.tar"
           target: "/tmp"
+          overwrite: true
 
       - name: Extract archive and run deployment on VPS
         uses: appleboy/ssh-action@v1.2.2
