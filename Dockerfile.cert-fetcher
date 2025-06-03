@@ -2,8 +2,8 @@ FROM debian:bookworm-slim
 
 RUN apt update && apt install -y curl jq unzip ca-certificates coreutils
 
-COPY ./fetch-certs.sh /usr/local/bin/fetch-certs.sh
-RUN chmod +x /usr/local/bin/fetch-certs.sh
+COPY ./cert-fetcher.sh /usr/local/bin/cert-fetcher.sh
+RUN chmod +x /usr/local/bin/cert-fetcher.sh
 
-ENTRYPOINT ["/usr/local/bin/fetch-certs.sh"]
+ENTRYPOINT ["/usr/local/bin/cert-fetcher.sh"]
 CMD []

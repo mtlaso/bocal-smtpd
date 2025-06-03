@@ -129,10 +129,10 @@ jobs:
           CERT_FETCHER_IMAGE_WITH_TAG=ghcr.io/${{ env.CERT_FETCHER_IMAGE_NAME }}@${{ needs.build_and_push_images.outputs.cert_fetcher_image_tag }}
           EOF
 
-          # Copy docker-compose.prod.yml, copy Caddyfile.prod, fetch-certs.sh.
+          # Copy docker-compose.prod.yml, copy Caddyfile.prod, cert-fetcher.sh.
           cp docker-compose.prod.yml ../vps-deploy-files/
           cp Caddyfile.prod ../vps-deploy-files/
-          cp fetch-certs.sh ../vps-deploy-files/
+          cp cert-fetcher.sh ../vps-deploy-files/
 
           tar -cvf vps-deploy-files.tar ../vps-deploy-files/
 
@@ -168,8 +168,8 @@ jobs:
             sudo tar -xvf "$ARCHIVE_PATH" -C "$APP_DIR"
             echo "Archive extracted."
 
-            echo "Setting permissions for fetch-certs.sh..."
-            sudo chmod +x "$APP_DIR/vps-deploy-files/fetch-certs.sh"
+            echo "Setting permissions for cert-fetcher.sh..."
+            sudo chmod +x "$APP_DIR/vps-deploy-files/cert-fetcher.sh"
 
             echo "Cleaning up deployment archive from /tmp..."
             rm "$ARCHIVE_PATH"

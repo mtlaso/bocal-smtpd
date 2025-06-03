@@ -12,8 +12,8 @@ services:
       - TLS_KEY_PATH=/app/certs/privatekey.pem
     volumes:
       - tls_certs_volume:/app/certs
-      - ./fetch-certs.sh:/usr/local/bin/fetch-certs.sh:ro
-    command: ["/usr/local/bin/fetch-certs.sh"]
+      - ./cert-fetcher.sh:/usr/local/bin/cert-fetcher.sh:ro
+    command: ["/usr/local/bin/cert-fetcher.sh"]
 
   bocal-smtpd:
     image: ${APP_IMAGE_WITH_TAG}

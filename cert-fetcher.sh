@@ -1,18 +1,18 @@
 #!/bin/sh
 
-#######################################################################
-#### DO NOT CHANGE FILE NAME. USED IN .github/workflows/deploy.yml ####
-#######################################################################
-#######################################################################
-#### DO NOT CHANGE FILE NAME. USED IN .github/workflows/deploy.yml ####
-#######################################################################
-#######################################################################
-#### DO NOT CHANGE FILE NAME. USED IN .github/workflows/deploy.yml ####
-#######################################################################
+########################################################################################
+#### DO NOT CHANGE FILE NAME. USED IN .github/workflows/deploy.yml and other places ####
+########################################################################################
+########################################################################################
+#### DO NOT CHANGE FILE NAME. USED IN .github/workflows/deploy.yml and other places ####
+########################################################################################
+########################################################################################
+#### DO NOT CHANGE FILE NAME. USED IN .github/workflows/deploy.yml and other places ####
+########################################################################################
 set -e
 
 echo 'Cert-Fetcher Script: Starting...'
-ERRPREFIX="Error (.sh): fetch-certs.sh"
+ERRPREFIX="Error (.sh): cert-fetcher.sh"
 
 # These environment variables are expected to be set when this script is run
 # (i.e., passed from docker-compose to the bitwarden/bws container)
