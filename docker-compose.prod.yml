@@ -41,6 +41,7 @@ services:
     volumes:
       - ./haproxy.prod.cfg:/usr/local/etc/haproxy/haproxy.cfg
     ports:
+      - "25:25"
       - "587:587"
       - "465:465"
     networks:
