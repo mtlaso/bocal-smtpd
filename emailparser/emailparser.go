@@ -71,7 +71,7 @@ type EmailPart struct {
 }
 
 // ParseEmail parses an email message.
-// It takes the email content as a string.
+// It takes ALL the email content as a string.
 func (p *Parser) ParseEmail(emailContent string) (*Email, error) {
 	msg, err := mail.ReadMessage(strings.NewReader(emailContent))
 	if err != nil {
