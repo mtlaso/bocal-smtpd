@@ -1,4 +1,6 @@
 // Package emailparser provides functionality to parse email messages.
+//
+// Ressource: https://github.com/kirabou/parseMIMEemail.go?tab=readme-ov-file.
 package emailparser
 
 import (
