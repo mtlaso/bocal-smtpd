@@ -18,6 +18,8 @@ import (
 	"strings"
 )
 
+var ErrInvalidBoundary = errors.New("invalid boundary: multipart content requires a boundary parameter")
+
 type Parser struct {
 	log *slog.Logger
 }
@@ -141,6 +143,9 @@ func (p *Parser) parseSinglePart(msg io.Reader, emailHeaders mail.Header) (*Emai
 //
 //nolint:gocognit // it's ok.
 func (p *Parser) parseMultipart(msg io.Reader, boundary string) ([]EmailPart, error) {
+	if boundary == "" {
+		return nil, ErrInvalidBoundary
+	}
 	var parts []EmailPart
 	reader := multipart.NewReader(msg, boundary)
 
