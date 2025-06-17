@@ -237,7 +237,7 @@ func (p *Parser) isAttachment(mimeHeaders textproto.MIMEHeader) bool {
 		return false
 	}
 
-	return strings.HasPrefix(contentDisposition, "attachment")
+	return strings.HasPrefix(strings.ToLower(contentDisposition), "attachment")
 }
 
 // decodeContent decodes the content of an email part.
