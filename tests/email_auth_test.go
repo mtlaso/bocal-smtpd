@@ -59,7 +59,7 @@ var AuthScenarios = []bocalmail.Scenario{
 		ToHeader:   "xxx@invalid.com",
 		DkimDomain: "",
 		DkimSign:   false,
-		ExpectPass: true,
+		ExpectPass: false,
 	},
 	{
 		Name:       "Invalid ToHeader eid. RCPT Failure",
