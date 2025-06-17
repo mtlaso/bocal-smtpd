@@ -28,6 +28,7 @@ import (
 
 const (
 	timeout        = time.Second * 20
+	oneMinute      = time.Second * 60
 	maxMessageSize = 1024 * 1024 // 1 MB
 	// 451 Requested action aborted: local error in processing.
 	codeRequestedActionAborted = 451
@@ -283,9 +284,11 @@ func (s *Session) Rcpt(to string, _ *smtp.RcptOptions) error {
 	feedEID := parts[0]
 
 	// Check if this eid exists in the `feeds` table.
+	ctx, cancel := context.WithTimeout(context.Background(), oneMinute)
+	defer cancel()
 	var exists bool
 	err := s.dbpool.
-		QueryRow(context.Background(),
+		QueryRow(ctx,
 			`SELECT EXISTS(SELECT 1 FROM feeds WHERE eid = $1)`,
 			feedEID).
 		Scan(&exists)
