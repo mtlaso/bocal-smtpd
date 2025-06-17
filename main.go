@@ -269,7 +269,17 @@ func (s *Session) Rcpt(to string, _ *smtp.RcptOptions) error {
 	// FeedEID is the external id (eid) of a feed in the `feeds` table.
 	//nolint:mnd // split email address into feed ID and email domain.
 	// E.g. feed-external-id@bocalusermail.fyi
-	feedEID := strings.SplitN(to, "@", 2)[0]
+	parts := strings.SplitN(to, "@", 2)
+	if len(parts) != 2 {
+		s.logger.Error("RCPT: invalid email address",
+			slog.String("traceID", s.traceID),
+			slog.Any("client IP", s.clientIP),
+			slog.Any("smtpmfrom", s.smtpmfrom),
+			slog.Any("mail to (recipient)", to),
+		)
+		return errRecipientDoesntExist
+	}
+	feedEID := parts[0]
 
 	// Check if this eid exists in the `feeds` table.
 	var exists bool
