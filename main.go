@@ -390,10 +390,19 @@ func (s *Session) Data(r io.Reader) error {
 	case ActionReject:
 		return errReject
 	case ActionQuarantine:
-		// TODO:
-		// Process the email but mark it as suspicious/spam in your system
+		// TODO: process the email but mark it as suspicious/spam in your system
 		// You might want to add headers or flags for your processing system
-		// ...
+		for _, rcpt := range s.rcpts {
+			go func(emailBuf bytes.Buffer, title string, rcpt string) {
+				if pErr := s.processEmail(emailBuf, title, rcpt); pErr != nil {
+					s.logger.Error(
+						"Failed to process email",
+						slog.String("traceID", s.traceID),
+						slog.Any("error", pErr),
+					)
+				}
+			}(emailBuf, emailMessage.Header.Get("Subject"), rcpt)
+		}
 		return nil
 	case ActionDefer:
 		return errTempfail
