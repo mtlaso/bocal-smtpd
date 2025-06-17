@@ -256,7 +256,7 @@ func (s *Session) Rcpt(to string, _ *smtp.RcptOptions) error {
 		slog.Any("mail to", to),
 	)
 
-	if !strings.HasSuffix(to, "@bocalusermail.fyi") {
+	if !strings.HasSuffix(to, strings.ToLower("@bocalusermail.fyi")) {
 		s.logger.Error("RCPT: recipient does not exist",
 			slog.String("traceID", s.traceID),
 			slog.Any("client IP", s.clientIP),
@@ -270,6 +270,7 @@ func (s *Session) Rcpt(to string, _ *smtp.RcptOptions) error {
 	//nolint:mnd // split email address into feed ID and email domain.
 	// E.g. feed-external-id@bocalusermail.fyi
 	parts := strings.SplitN(to, "@", 2)
+	//nolint:mnd // split email address into feed ID and email domain.
 	if len(parts) != 2 {
 		s.logger.Error("RCPT: invalid email address",
 			slog.String("traceID", s.traceID),
@@ -299,9 +300,7 @@ func (s *Session) Rcpt(to string, _ *smtp.RcptOptions) error {
 		return errRecipientDoesntExist
 	}
 
-	if strings.HasSuffix(to, "@bocalusermail.fyi") {
-		s.rcpts = append(s.rcpts, to)
-	}
+	s.rcpts = append(s.rcpts, to)
 
 	return nil
 }
