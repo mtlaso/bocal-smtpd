@@ -20,6 +20,7 @@ var AuthScenarios = []bocalmail.Scenario{
 		Name:       "Valid SPF, Valid DKIM",
 		Smtpmfrom:  "sender@example.com",
 		FromHeader: "sender@example.com",
+		ToHeader:   "2188676a-34ed-404a-888c-05ba461aebef@bocalusermail.fyi",
 		DkimDomain: "example.com",
 		DkimSign:   true,
 		ExpectPass: true,
@@ -28,6 +29,7 @@ var AuthScenarios = []bocalmail.Scenario{
 		Name:       "SPF Pass, DKIM Fail",
 		Smtpmfrom:  "sender@example.com",
 		FromHeader: "sender@example.com",
+		ToHeader:   "2188676a-34ed-404a-888c-05ba461aebef@bocalusermail.fyi",
 		DkimDomain: "",
 		DkimSign:   false,
 		ExpectPass: true,
@@ -36,6 +38,7 @@ var AuthScenarios = []bocalmail.Scenario{
 		Name:       "SPF Fail, DKIM Pass",
 		Smtpmfrom:  "sender@test.com", // SPF misaligned, different from Smtpmfrom.
 		FromHeader: "sender@example.com",
+		ToHeader:   "2188676a-34ed-404a-888c-05ba461aebef@bocalusermail.fyi",
 		DkimDomain: "example.com",
 		DkimSign:   true,
 		ExpectPass: true,
@@ -44,6 +47,25 @@ var AuthScenarios = []bocalmail.Scenario{
 		Name:       "SPF Fail, DKIM Fail",
 		Smtpmfrom:  "sender@test.com",
 		FromHeader: "sender@example.com", // SPF misaligned, different from Smtpmfrom.
+		ToHeader:   "2188676a-34ed-404a-888c-05ba461aebef@bocalusermail.fyi",
+		DkimDomain: "",
+		DkimSign:   false,
+		ExpectPass: false,
+	},
+	{
+		Name:       "Invalid ToHeader domain. RCPT Failure",
+		Smtpmfrom:  "sender@example.com",
+		FromHeader: "sender@example.com",
+		ToHeader:   "xxx@invalid.com",
+		DkimDomain: "",
+		DkimSign:   false,
+		ExpectPass: true,
+	},
+	{
+		Name:       "Invalid ToHeader eid. RCPT Failure",
+		Smtpmfrom:  "sender@example.com",
+		FromHeader: "sender@example.com",
+		ToHeader:   "xxx@bocalusermail.fyi",
 		DkimDomain: "",
 		DkimSign:   false,
 		ExpectPass: false,
@@ -116,11 +138,8 @@ func TestEmailAuthScenarios(t *testing.T) {
 		t.Run(fmt.Sprintf("Scenario %d: %s", i+1, scenario.Name), func(t *testing.T) {
 			t.Parallel()
 
-			// The part before the domain is the eid of a feed.
-			// Make sure to use a real eid to add content to the database.
-			toHeader := "2188676a-34ed-404a-888c-05ba461aebef@bocalusermail.fyi"
 			emailBody := bocalmail.CreateEmailBody()
-			emailHeaders := bocalmail.CreateEmailHeaders(scenario, toHeader)
+			emailHeaders := bocalmail.CreateEmailHeaders(scenario, scenario.ToHeader)
 			emailString := emailHeaders + "\r\n" + emailBody
 
 			var finalEmail []byte
@@ -144,7 +163,7 @@ func TestEmailAuthScenarios(t *testing.T) {
 				"127.0.0.1:465",
 				finalEmail,
 				scenario.Smtpmfrom,
-				toHeader,
+				scenario.ToHeader,
 			)
 			if scenario.ExpectPass {
 				switch {

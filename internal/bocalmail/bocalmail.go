@@ -29,6 +29,9 @@ type Scenario struct {
 	Name       string
 	Smtpmfrom  string
 	FromHeader string
+	// The part before the domain is the eid (external id) of a feed.
+	// Make sure to use a real eid to add content to the database.
+	ToHeader   string
 	DkimDomain string
 	DkimSign   bool
 	ExpectPass bool
