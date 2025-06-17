@@ -24,7 +24,7 @@ type Parser struct {
 	log *slog.Logger
 }
 
-// New creates a new email parser.
+// New returns a new Parser instance with a default logger that writes to standard output.
 func New() *Parser {
 	defaultLogger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	return &Parser{
