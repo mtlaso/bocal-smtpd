@@ -400,15 +400,15 @@ func (s *Session) Data(r io.Reader) error {
 
 	case ActionAccept:
 		for _, rcpt := range s.rcpts {
-			go func(emailMessage *mail.Message, rcpt string) {
-				if pErr := s.processEmail(emailMessage, rcpt); pErr != nil {
+			go func(emailBuf bytes.Buffer, title string, rcpt string) {
+				if pErr := s.processEmail(emailBuf, title, rcpt); pErr != nil {
 					s.logger.Error(
 						"Failed to process email",
 						slog.String("traceID", s.traceID),
 						slog.Any("error", pErr),
 					)
 				}
-			}(emailMessage, rcpt)
+			}(emailBuf, emailMessage.Header.Get("Subject"), rcpt)
 		}
 		return nil
 	}
@@ -418,7 +418,7 @@ func (s *Session) Data(r io.Reader) error {
 
 // processEmail will process the email.
 // It takes the email and adds it to the database.
-func (s *Session) processEmail(emailMessage *mail.Message, rcpt string) error {
+func (s *Session) processEmail(emailBuf bytes.Buffer, title string, rcpt string) error {
 	// Find the feed id with the rcpt.
 	// The 'rcpt' is the eid (external id) of a feed.
 	var feedID string
@@ -436,14 +436,7 @@ func (s *Session) processEmail(emailMessage *mail.Message, rcpt string) error {
 	// Parse email content.
 	emailParser := emailparser.New()
 	emailParser.SetLogger(s.logger)
-	var content []byte
-	content, err = io.ReadAll(emailMessage.Body)
-	if err != nil {
-		// Content is optional if it cannot be read.
-		s.logger.Warn("could not read email content", slog.Any("error", err))
-		content = []byte{}
-	}
-	parsedEmail, parseErr := emailParser.ParseEmail(string(content))
+	parsedEmail, parseErr := emailParser.ParseEmail(emailBuf.String())
 	if parseErr != nil {
 		return fmt.Errorf("could not parse email: %w", parseErr)
 	}
@@ -458,7 +451,6 @@ func (s *Session) processEmail(emailMessage *mail.Message, rcpt string) error {
 	// Add content to 'feeds_content'.
 	url := fmt.Sprintf("https://bocal.fyi/userfeeds/%s/content/%s", feedEID, uuid.NewString())
 	date := time.Now()
-	title := emailMessage.Header.Get("Subject")
 	cmdTag, err := s.dbpool.Exec(context.Background(), `
 		INSERT INTO feeds_content ("feedId", date, url, title, content)
 		VALUES($1, $2, $3, $4, $5)`,
