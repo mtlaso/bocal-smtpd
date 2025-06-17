@@ -267,7 +267,8 @@ func (s *Session) Rcpt(to string, _ *smtp.RcptOptions) error {
 	}
 
 	// FeedEID is the external id (eid) of a feed in the `feeds` table.
-	//nolint:mnd // todo.
+	//nolint:mnd // split email address into feed ID and email domain.
+	// E.g. feed-external-id@bocalusermail.fyi
 	feedEID := strings.SplitN(to, "@", 2)[0]
 
 	// Check if this eid exists in the `feeds` table.
