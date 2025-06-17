@@ -31,5 +31,5 @@ jobs:
       - name: Set up golangci-lint
         uses: golangci/golangci-lint-action@v8
 
-      - name: Run Tests with Build (make test-build)
-        run: make test-build
+      - name: Run Tests with Build
+        run: make bootstrap-tests

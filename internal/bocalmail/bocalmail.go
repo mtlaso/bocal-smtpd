@@ -1,3 +1,4 @@
+// Package bocalmail provides a simple email client for sending emails. Used for testing.
 package bocalmail
 
 import (

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"bocal.fyi/mail-server/emailparser"
 	"github.com/emersion/go-msgauth/dkim"
 	"github.com/emersion/go-msgauth/dmarc"
 	"github.com/emersion/go-sasl"
@@ -389,6 +390,7 @@ func (s *Session) Data(r io.Reader) error {
 	case ActionReject:
 		return errReject
 	case ActionQuarantine:
+		// TODO:
 		// Process the email but mark it as suspicious/spam in your system
 		// You might want to add headers or flags for your processing system
 		// ...
@@ -398,15 +400,15 @@ func (s *Session) Data(r io.Reader) error {
 
 	case ActionAccept:
 		for _, rcpt := range s.rcpts {
-			go func(emailMessage *mail.Message, rcpt string) {
-				if pErr := s.processEmail(emailMessage, rcpt); pErr != nil {
+			go func(emailBuf bytes.Buffer, title string, rcpt string) {
+				if pErr := s.processEmail(emailBuf, title, rcpt); pErr != nil {
 					s.logger.Error(
 						"Failed to process email",
 						slog.String("traceID", s.traceID),
 						slog.Any("error", pErr),
 					)
 				}
-			}(emailMessage, rcpt)
+			}(emailBuf, emailMessage.Header.Get("Subject"), rcpt)
 		}
 		return nil
 	}
@@ -416,7 +418,7 @@ func (s *Session) Data(r io.Reader) error {
 
 // processEmail will process the email.
 // It takes the email and adds it to the database.
-func (s *Session) processEmail(emailMessage *mail.Message, rcpt string) error {
+func (s *Session) processEmail(emailBuf bytes.Buffer, title string, rcpt string) error {
 	// Find the feed id with the rcpt.
 	// The 'rcpt' is the eid (external id) of a feed.
 	var feedID string
@@ -431,18 +433,24 @@ func (s *Session) processEmail(emailMessage *mail.Message, rcpt string) error {
 
 	s.logger.Info("Found feed id", slog.String("id", feedID), slog.String("rcpt", rcpt))
 
+	// Parse email content.
+	emailParser := emailparser.New()
+	emailParser.SetLogger(s.logger)
+	parsedEmail, parseErr := emailParser.ParseEmail(emailBuf.String())
+	if parseErr != nil {
+		return fmt.Errorf("could not parse email: %w", parseErr)
+	}
+
+	// Concatenate all email parts.
+	var sb strings.Builder
+	for _, part := range parsedEmail.Parts {
+		sb.WriteString(part.DecodedContent)
+	}
+	sb.WriteString("\n")
+
 	// Add content to 'feeds_content'.
 	url := fmt.Sprintf("https://bocal.fyi/userfeeds/%s/content/%s", feedEID, uuid.NewString())
 	date := time.Now()
-	title := emailMessage.Header.Get("Subject")
-	var content []byte
-	content, err = io.ReadAll(emailMessage.Body)
-	if err != nil {
-		// Content is optional if it cannot be read.
-		s.logger.Warn("could not read email content", slog.Any("error", err))
-		content = []byte{}
-	}
-
 	cmdTag, err := s.dbpool.Exec(context.Background(), `
 		INSERT INTO feeds_content ("feedId", date, url, title, content)
 		VALUES($1, $2, $3, $4, $5)`,
@@ -450,7 +458,7 @@ func (s *Session) processEmail(emailMessage *mail.Message, rcpt string) error {
 		date,
 		url,
 		title,
-		string(content),
+		sb.String(),
 	)
 	if err != nil {
 		return fmt.Errorf("database error: %w", err)
