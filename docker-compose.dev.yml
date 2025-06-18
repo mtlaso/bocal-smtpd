@@ -17,7 +17,8 @@ services:
     environment:
       - TLS_CERT_PATH=/app/certs/fullchain.pem
       - TLS_KEY_PATH=/app/certs/privatekey.pem
-      - DATABASE_URL=postgres://admin:root@host.docker.internal:5432/bocal
+      # - DATABASE_URL=postgres://admin:root@host.docker.internal:5432/bocal
+      - DATABASE_URL=postgres://admin:root@db:5432/bocal?sslmode=disable
     networks:
       bocal_net:
         ipv4_address: 172.28.1.1
