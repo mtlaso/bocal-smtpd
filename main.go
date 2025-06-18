@@ -28,11 +28,13 @@ import (
 
 const (
 	timeout        = time.Second * 20
+	oneMinute      = time.Second * 60
 	maxMessageSize = 1024 * 1024 // 1 MB
 	// 451 Requested action aborted: local error in processing.
 	codeRequestedActionAborted = 451
 	codeDeferred               = 451
 	codeRejected               = 550
+	codeRecipientDoesntExist   = 553
 )
 
 var (
@@ -55,6 +57,11 @@ var (
 		Code:    codeRejected,
 		Message: "Email rejected due to DMARC policy",
 	}
+
+	errRecipientDoesntExist = &smtp.SMTPError{
+		Code:    codeRecipientDoesntExist,
+		Message: "Recipient doesn't exist",
+	}
 )
 
 func defaultDmarcRecord() *dmarc.Record {
@@ -71,10 +78,8 @@ type Backend struct {
 	dbpool *pgxpool.Pool
 }
 
-// NewSession is called after client greeting (EHLO, HELO).
+// NewSession is called after a client greeting (EHLO, HELO).
 func (b *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
-	// TODO: do a PTR check?
-	// net.LookupAddr(addr string)
 	remoteAddr, ok := c.Conn().RemoteAddr().(*net.TCPAddr)
 	var clientIP net.IP
 	if ok {
@@ -252,16 +257,59 @@ func (s *Session) Rcpt(to string, _ *smtp.RcptOptions) error {
 		slog.Any("mail to", to),
 	)
 
-	if strings.HasSuffix(to, "@bocalusermail.fyi") {
-		s.rcpts = append(s.rcpts, to)
+	if !strings.HasSuffix(to, strings.ToLower("@bocalusermail.fyi")) {
+		s.logger.Error("RCPT: recipient does not exist",
+			slog.String("traceID", s.traceID),
+			slog.Any("client IP", s.clientIP),
+			slog.Any("smtpmfrom", s.smtpmfrom),
+			slog.Any("mail to (recipient)", to),
+		)
+		return errRecipientDoesntExist
 	}
+
+	// FeedEID is the external id (eid) of a feed in the `feeds` table.
+	//nolint:mnd // split email address into feed ID and email domain.
+	parts := strings.SplitN(to, "@", 2)
+	//nolint:mnd // split email address into feed ID and email domain.
+	if len(parts) != 2 {
+		s.logger.Error("RCPT: invalid email address",
+			slog.String("traceID", s.traceID),
+			slog.Any("client IP", s.clientIP),
+			slog.Any("smtpmfrom", s.smtpmfrom),
+			slog.Any("mail to (recipient)", to),
+		)
+		return errRecipientDoesntExist
+	}
+	feedEID := parts[0]
+
+	// Check if this eid exists in the `feeds` table.
+	ctx, cancel := context.WithTimeout(context.Background(), oneMinute)
+	defer cancel()
+	var exists bool
+	err := s.dbpool.
+		QueryRow(ctx,
+			`SELECT EXISTS(SELECT 1 FROM feeds WHERE eid = $1)`,
+			feedEID).
+		Scan(&exists)
+	if err != nil {
+		s.logger.Error("RCPT: database error checking feed",
+			slog.String("traceID", s.traceID),
+			slog.Any("error", err),
+		)
+		return errInternalServer
+	}
+	if !exists {
+		return errRecipientDoesntExist
+	}
+
+	s.rcpts = append(s.rcpts, to)
 
 	return nil
 }
 
 // Data is the handler for DATA command.
 //
-//nolint:funlen // todo.
+//nolint:gocognit,funlen // todo.
 func (s *Session) Data(r io.Reader) error {
 	// Save r io.Reader to an unconsumed buffer
 	// so that reading from it can be repeated without modifying the original data.
@@ -294,7 +342,6 @@ func (s *Session) Data(r io.Reader) error {
 		s.logger.Error("DATA: missing From header in the message",
 			slog.String("traceID", s.traceID),
 		)
-		// TODO: is this code correct?
 		// As per RFC 7489 > 6.6.1
 		// > Messages that have no RFC5322.From field at all are typically rejected, since that form is forbidden under RFC 5322 [MAIL];
 		return errNoFromHeader
@@ -390,10 +437,19 @@ func (s *Session) Data(r io.Reader) error {
 	case ActionReject:
 		return errReject
 	case ActionQuarantine:
-		// TODO:
-		// Process the email but mark it as suspicious/spam in your system
+		// TODO: process the email but mark it as suspicious/spam in your system
 		// You might want to add headers or flags for your processing system
-		// ...
+		for _, rcpt := range s.rcpts {
+			go func(emailBuf bytes.Buffer, title string, rcpt string) {
+				if pErr := s.processEmail(emailBuf, title, rcpt); pErr != nil {
+					s.logger.Error(
+						"Failed to process email",
+						slog.String("traceID", s.traceID),
+						slog.Any("error", pErr),
+					)
+				}
+			}(emailBuf, emailMessage.Header.Get("Subject"), rcpt)
+		}
 		return nil
 	case ActionDefer:
 		return errTempfail
