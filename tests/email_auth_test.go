@@ -14,13 +14,18 @@ import (
 	"bocal.fyi/mail-server/internal/bocalmail"
 )
 
+// This is defined in tests/db/docker-initdb/02_seed_feeds.sql.
+//
+//nolint:gochecknoglobals // For testing purposes only.
+var ExistingFeedEID = "2188676a-34ed-404a-888c-05ba461aebef"
+
 //nolint:gochecknoglobals // For testing purposes only.
 var AuthScenarios = []bocalmail.Scenario{
 	{
 		Name:       "Valid SPF, Valid DKIM",
 		Smtpmfrom:  "sender@example.com",
 		FromHeader: "sender@example.com",
-		ToHeader:   "2188676a-34ed-404a-888c-05ba461aebef@bocalusermail.fyi",
+		ToHeader:   ExistingFeedEID + "@bocalusermail.fyi",
 		DkimDomain: "example.com",
 		DkimSign:   true,
 		ExpectPass: true,
@@ -29,7 +34,7 @@ var AuthScenarios = []bocalmail.Scenario{
 		Name:       "SPF Pass, DKIM Fail",
 		Smtpmfrom:  "sender@example.com",
 		FromHeader: "sender@example.com",
-		ToHeader:   "2188676a-34ed-404a-888c-05ba461aebef@bocalusermail.fyi",
+		ToHeader:   ExistingFeedEID + "@bocalusermail.fyi",
 		DkimDomain: "",
 		DkimSign:   false,
 		ExpectPass: true,
@@ -38,7 +43,7 @@ var AuthScenarios = []bocalmail.Scenario{
 		Name:       "SPF Fail, DKIM Pass",
 		Smtpmfrom:  "sender@test.com", // SPF misaligned, different from Smtpmfrom.
 		FromHeader: "sender@example.com",
-		ToHeader:   "2188676a-34ed-404a-888c-05ba461aebef@bocalusermail.fyi",
+		ToHeader:   ExistingFeedEID + "@bocalusermail.fyi",
 		DkimDomain: "example.com",
 		DkimSign:   true,
 		ExpectPass: true,
@@ -47,7 +52,7 @@ var AuthScenarios = []bocalmail.Scenario{
 		Name:       "SPF Fail, DKIM Fail",
 		Smtpmfrom:  "sender@test.com",
 		FromHeader: "sender@example.com", // SPF misaligned, different from Smtpmfrom.
-		ToHeader:   "2188676a-34ed-404a-888c-05ba461aebef@bocalusermail.fyi",
+		ToHeader:   ExistingFeedEID + "@bocalusermail.fyi",
 		DkimDomain: "",
 		DkimSign:   false,
 		ExpectPass: false,

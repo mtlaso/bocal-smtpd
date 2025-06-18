@@ -22,8 +22,8 @@ services:
     networks:
       bocal_net:
         ipv4_address: 172.28.1.1
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    # extra_hosts:
+    # - "host.docker.internal:host-gateway"
 
   # Mock DNS server for SPF/DMARC/DKIM records.
   coredns:
