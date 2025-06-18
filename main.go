@@ -296,12 +296,6 @@ func (s *Session) Rcpt(to string, _ *smtp.RcptOptions) error {
 			slog.String("traceID", s.traceID),
 			slog.Any("error", err),
 		)
-		// TODO:
-		// This introduces a dependency to the database.
-		// So we have three choices:
-		// 	1. Ignore the error when running this in github actions
-		// 	2. Setup a local database in the docker-compose.dev.yml file
-		//  3. Setup a databse using real data with neondb branching
 		return errInternalServer
 	}
 	if !exists {
