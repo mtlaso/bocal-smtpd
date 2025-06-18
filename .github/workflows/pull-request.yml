@@ -1,4 +1,4 @@
-name: Run tests for pull request
+name: PR Preview & CI
 
 on:
   pull_request:

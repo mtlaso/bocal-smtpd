@@ -6,9 +6,13 @@ services:
       context: .
       target: dev
     container_name: bocal-smtpd
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "465:465"
     volumes:
+      # Force the container to use coredns as a DNS resolver.
       - ./dns/resolv.conf:/etc/resolv.conf:ro
     environment:
       - TLS_CERT_PATH=/app/certs/fullchain.pem
@@ -20,7 +24,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  # Mock DNS server for SPF/DMARC/DKIM records
+  # Mock DNS server for SPF/DMARC/DKIM records.
   coredns:
     image: coredns/coredns
     container_name: coredns
@@ -33,6 +37,24 @@ services:
     networks:
       bocal_net:
         ipv4_address: 172.28.1.2
+
+  # Db to test RCPT.
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: bocal
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "admin", "-d", "bocal"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./tests/db/docker-initdb:/docker-entrypoint-initdb.d
+    networks:
+      bocal_net:
+        ipv4_address: 172.28.1.3
 
 networks:
   bocal_net:
