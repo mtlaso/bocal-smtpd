@@ -43,11 +43,6 @@ OUT=$(openssl req -x509 -newkey rsa:4096 -keyout internal/bocalmail/privatekey.p
 if [ ! -f dns/Corefile ]; then
     echo "$PREFIX Creating CoreDNS configuration..."
     cat > dns/Corefile << EOF
-. {
-    forward . 8.8.8.8
-    log
-}
-
 example.com {
     file /etc/coredns/zones/example.com.zone
     log
@@ -57,6 +52,13 @@ test.com {
     file /etc/coredns/zones/test.com.zone
     log
 }
+
+. {
+    # Forward to Docker's built-in DNS.
+    forward . 127.0.0.11
+    log
+}
+
 EOF
 fi
 
