@@ -282,9 +282,10 @@ func (s *Session) Rcpt(to string, _ *smtp.RcptOptions) error {
 	}
 	feedEID := parts[0]
 
-	// Check if the feedEID is a valid UUID, if it's not checked, the db errors.
+	// Check if the feedEID is a valid UUID.
+	// If it's not checked, the db returns an error.
 	if uuidErr := uuid.Validate(feedEID); uuidErr != nil {
-		s.logger.Error("RCPT: can't validate if feedEID is a uuidv4",
+		s.logger.Error("RCPT: feedEID is not a valid uuidv4",
 			slog.String("traceID", s.traceID),
 			slog.String("feedEID", feedEID),
 			slog.Any("error", uuidErr),
