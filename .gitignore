@@ -15,3 +15,5 @@ dns/Corefile
 *.pfx
 dkim.public
 dkim.private
+
+tests/send-email.sh
