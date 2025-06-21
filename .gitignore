@@ -17,3 +17,4 @@ dkim.public
 dkim.private
 
 tests/send-email.sh
+tests/email-data.eml
