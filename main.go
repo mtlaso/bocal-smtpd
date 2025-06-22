@@ -511,7 +511,9 @@ func (s *Session) processEmail(emailBuf bytes.Buffer, title string, rcpt string)
 	// Concatenate all email parts.
 	var sb strings.Builder
 	for _, part := range parsedEmail.Parts {
-		sb.WriteString(part.DecodedContent)
+		if part.IsHTML {
+			sb.WriteString(part.DecodedContent)
+		}
 	}
 	sb.WriteString("\n")
 
