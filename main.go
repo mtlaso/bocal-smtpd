@@ -516,16 +516,18 @@ func (s *Session) processEmail(emailBuf bytes.Buffer, title string, rcpt string)
 	sb.WriteString("\n")
 
 	// Add content to 'feeds_content'.
-	url := fmt.Sprintf("https://bocal.fyi/userfeeds/%s/content/%s", feedEID, uuid.NewString())
+	eid := uuid.NewString()
+	url := fmt.Sprintf("https://bocal.fyi/userfeeds/%s/content/%s", feedEID, eid)
 	date := time.Now()
 	cmdTag, err := s.dbpool.Exec(context.Background(), `
-		INSERT INTO feeds_content ("feedId", date, url, title, content)
-		VALUES($1, $2, $3, $4, $5)`,
+		INSERT INTO feeds_content ("feedId", date, url, title, content, eid)
+		VALUES($1, $2, $3, $4, $5, $6)`,
 		feedID,
 		date,
 		url,
 		title,
 		sb.String(),
+		eid,
 	)
 	if err != nil {
 		return fmt.Errorf("database error: %w", err)
