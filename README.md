@@ -22,7 +22,6 @@ swaks \
   --tls \
   --tls-optional \
   --data @email-data.eml
-
 ```
 
 3. Fichier `email-data.eml` :
